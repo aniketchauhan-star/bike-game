@@ -1,0 +1,25 @@
+<!doctype html><html><head><meta charset="utf-8"><title>bike thumb</title>
+<style>html,body{margin:0;background:transparent;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }</script>
+</head><body><script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/RoomEnvironment.js';
+import { createBike } from '../js/models/bikes.js';
+const id = new URLSearchParams(location.search).get('id') || 'zx10r';
+const W = innerWidth, H = innerHeight;
+const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+r.setSize(W, H); r.setPixelRatio(1); r.setClearColor(0x000000, 0);
+r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.05; r.outputColorSpace = THREE.SRGBColorSpace;
+document.body.appendChild(r.domElement);
+const scene = new THREE.Scene();
+const pm = new THREE.PMREMGenerator(r); scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture; scene.environmentIntensity = 0.8;
+scene.add(new THREE.HemisphereLight(0xdfeaff, 0x3a3028, 0.7));
+const key = new THREE.DirectionalLight(0xffffff, 2.4); key.position.set(4, 6, 5); scene.add(key);
+const rim = new THREE.DirectionalLight(0xbcd2ff, 1.6); rim.position.set(-5, 3, -4); scene.add(rim);
+const bike = createBike(id); scene.add(bike.group);
+bike.update?.(0.016, 0, { speed: 0, steer: 0.15, brake: 0, throttle: 0 });
+const cam = new THREE.PerspectiveCamera(24, W / H, 0.1, 100);
+cam.position.set(3.05, 0.95, 1.45); cam.lookAt(0, 0.55, 0.0);
+r.render(scene, cam);
+window.__ready = true;
+</script></body></html>

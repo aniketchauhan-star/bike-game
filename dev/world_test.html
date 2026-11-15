@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><title>World test</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#000}#i{position:fixed;left:6px;top:4px;color:#fff;font:12px monospace;z-index:2;text-shadow:0 1px 2px #000;white-space:pre}</style>
+<script type="importmap">{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }</script>
+</head><body><div id="i">loading...</div>
+<script type="module">
+import * as THREE from 'three';
+import { World } from '../js/world/world.js';
+import { QUALITY } from '../js/config.js';
+const q = new URLSearchParams(location.search);
+const quality = QUALITY[q.get('q') || 'high'];
+const renderer = new THREE.WebGLRenderer({ antialias: quality.antialias });
+renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.shadowMap.enabled = quality.shadows; renderer.shadowMap.type = THREE.PCFShadowMap;
+document.body.appendChild(renderer.domElement);
+const info = document.getElementById('i');
+const world = new World(renderer, quality);
+const t0 = performance.now();
+await world.build(p => info.textContent = 'building ' + (p * 100).toFixed(0) + '%');
+world.setTimeOfDay(q.get('tod') || 'morning');
+window.__world = world;
+const camera = new THREE.PerspectiveCamera(+(q.get('fov') || 62), innerWidth / innerHeight, 0.3, world.viewFar);
+const T = world.track;
+let s = +(q.get('s') || 40);
+const place = () => {
+  const d = +(q.get('d') || 0), h = +(q.get('h') || 2.2), look = +(q.get('look') || 30);
+  const p = T.point(s, d); camera.position.set(p.x, p.y + h, p.z);
+  if (q.has('yaw')) { const f = T.forward(s); const a = +q.get('yaw') * Math.PI / 180; const dir = new THREE.Vector3(f.x * Math.cos(a) - f.z * Math.sin(a), 0, f.x * Math.sin(a) + f.z * Math.cos(a)); const pitch = +(q.get('pitch') || -5) * Math.PI / 180; camera.lookAt(camera.position.clone().add(dir.multiplyScalar(30)).add(new THREE.Vector3(0, Math.tan(pitch) * 30, 0))); }
+  else { const t = T.point(Math.min(T.length, s + look), d * 0.5); camera.lookAt(t.x, t.y + h * 0.6 + +(q.get('ly') || 0), t.z); }
+};
+place();
+const fly = q.get('fly') === '1';
+let calls = 0, tris = 0;
+renderer.setAnimationLoop(() => {
+  if (fly) { s += 0.6; place(); }
+  world.update(1 / 60, camera, camera.position);
+  world.render(renderer, camera);
+  calls = renderer.info.render.calls; tris = renderer.info.render.triangles;
+  info.textContent = `s=${s.toFixed(0)} zone=${T.zoneAt(s).id} build ${(t0 ? ((performance.now()-t0)/1000).toFixed(1) : '')}s\ncalls ${calls} tris ${(tris/1000).toFixed(0)}k`;
+  window.__ready = true;
+});
+</script></body></html>

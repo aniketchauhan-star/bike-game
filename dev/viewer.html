@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Model Viewer (dev)</title>
+<style>
+  html,body{margin:0;height:100%;background:#20242a;overflow:hidden;font:12px monospace;color:#ddd}
+  #info{position:fixed;left:8px;top:6px;z-index:2;white-space:pre;text-shadow:0 1px 2px #000}
+  canvas{display:block}
+</style>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }
+</script>
+</head>
+<body>
+<div id="info"></div>
+<script type="module" src="./viewer.js"></script>
+</body>
+</html>

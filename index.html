@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#05070c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+<title>Uttarakhand Riders</title>
+<link rel="preload" as="image" href="assets/title.jpg">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.js", "three/addons/": "./vendor/three/addons/" } }
+</script>
+</head>
+<body>
+<div id="stage">
+  <div id="game">
+    <canvas id="c"></canvas>
+    <div id="vignette"></div>
+
+    <!-- ============ LOADING / TITLE ============ -->
+    <section id="scr-loading" class="screen active">
+      <div class="title-bg"></div>
+      <div class="load-center">
+        <div class="logo"><span class="l1">UTTARAKHAND</span><span class="l2">RIDERS</span></div>
+      </div>
+      <div class="title-load" id="title-load">
+        <div class="load-bar"><i id="load-fill"></i></div>
+        <div class="load-row"><span id="load-step">Loading...</span><span id="load-pct">0%</span></div>
+        <div class="load-tip" id="load-tip"></div>
+      </div>
+      <button id="btn-tap" class="btn-yellow big hidden">START</button>
+      <div class="title-place hidden">📍 RANIKHET • UTTARAKHAND</div>
+    </section>
+
+    <!-- ============ LOBBY ============ -->
+    <section id="scr-lobby" class="screen">
+      <header class="lobby-top">
+        <div class="mini-logo">UTTARAKHAND <b>RIDERS</b></div>
+        <div class="grow"></div>
+        <div class="music-chip" data-act="music"><span class="mc-ico">♫</span><span class="mc-title">Music band hai</span><button class="mc-skip" data-act="music-btn" title="Play / Next">▶</button></div>
+        <button class="icon-btn" data-act="settings" title="Settings">⚙</button>
+        <button class="icon-btn" data-act="fullscreen" title="Fullscreen">⛶</button>
+      </header>
+
+      <aside class="char-card">
+        <div class="cc-head">
+          <div class="cc-badge" id="cc-badge">M</div>
+          <div class="cc-id">
+            <div class="cc-name" id="cc-name">MAYANK</div>
+            <div class="cc-meta"><span class="cc-tag" id="cc-tag">Green Machine</span><span id="cc-age" class="cc-age">ADULT</span></div>
+          </div>
+        </div>
+        <div class="cc-bike">
+          <img class="cc-bike-img" id="cc-bike-img" src="assets/bikes/zx10r.png" alt="">
+          <div><b id="cc-bike">Kawasaki Ninja ZX-10R</b><small id="cc-engine">998cc Inline-4 • 203 PS</small></div>
+        </div>
+        <div class="stats" id="cc-stats"></div>
+        <div class="cc-bio" id="cc-bio"></div>
+      </aside>
+
+      <div class="char-nav">
+        <button class="nav-arrow" data-act="prev">‹</button>
+        <div class="dots" id="char-dots"></div>
+        <button class="nav-arrow" data-act="next">›</button>
+      </div>
+      <div class="swipe-hint">⟵ swipe karke rider badlo ⟶</div>
+
+      <aside class="lobby-right">
+        <div class="card mode-card" data-act="mode">
+          <div class="card-k">MODE</div>
+          <div class="card-v"><span id="mode-ico">🏁</span> <span id="mode-name">RACE vs CPU</span></div>
+          <div class="card-d" id="mode-desc"></div>
+        </div>
+        <div class="card diff-card" id="diff-card">
+          <div class="card-k">CPU LEVEL</div>
+          <div class="diff-pills">
+            <button data-act="diff" data-val="easy">EASY</button>
+            <button data-act="diff" data-val="medium">MEDIUM</button>
+            <button data-act="diff" data-val="hard">HARD</button>
+          </div>
+          <div class="card-d" id="diff-desc"></div>
+        </div>
+        <div class="card map-card" data-act="map">
+          <div class="card-k">MAP • UTTARAKHAND</div>
+          <div class="map-thumb"><canvas id="map-thumb" width="300" height="150"></canvas></div>
+          <div class="card-v">RAMNAGAR → RANIKHET</div>
+          <div class="card-d"><span id="tod-name">SUBAH</span> • <span id="diff-name">MEDIUM</span> CPU</div>
+        </div>
+      </aside>
+
+      <footer class="lobby-bottom">
+        <button class="btn-blue" data-act="multiplayer"><span>👥</span> MULTIPLAYER</button>
+        <button class="btn-yellow start" data-act="start">START</button>
+      </footer>
+    </section>
+
+    <!-- ============ INTRO / COUNTDOWN ============ -->
+    <section id="scr-intro" class="screen">
+      <div class="intro-banner hidden" id="intro-banner"><span class="ib-you">YOU</span><small>MAIN HOON</small><b class="ib-name"></b></div>
+      <div class="countdown" id="countdown"></div>
+      <button class="skip-btn" data-act="skip">SKIP ▸▸</button>
+      <div class="letterbox top"></div><div class="letterbox bottom"></div>
+    </section>
+
+    <!-- ============ HUD ============ -->
+    <section id="scr-hud" class="screen">
+      <div class="radar-wrap">
+        <canvas id="radar" width="360" height="250"></canvas>
+        <div class="radar-info"><b id="hud-zone">RAMNAGAR</b><span id="hud-km">5.4 km • Ranikhet</span></div>
+      </div>
+      <div class="hud-tr">
+        <div class="pos"><b id="hud-pos">1</b><span>/<i id="hud-total">3</i></span></div>
+        <div class="timer" id="hud-time">0:00.00</div>
+        <div class="hud-btns">
+          <button class="icon-btn" data-ctl="pause">❚❚</button>
+          <button class="icon-btn" data-ctl="camera">🎥</button>
+          <button class="icon-btn" data-ctl="reset" title="Reset">↺</button>
+          <button class="icon-btn" data-act="music-btn" title="Song">♫</button>
+        </div>
+        <div class="vc-bar hidden" id="vc-bar">
+          <button class="icon-btn vc-mic" data-act="vc-mic" title="Mic">🎤</button>
+          <button class="icon-btn vc-spk on" data-act="vc-spk" title="Speaker">🔊</button>
+        </div>
+        <div class="vc-talk" id="vc-talk"></div>
+        <div class="music-chip small" data-act="music"><span class="mc-ico">♫</span><span class="mc-title">Music band hai</span></div>
+      </div>
+      <div class="speedo">
+        <svg viewBox="0 0 200 120"><path class="rpm-bg" d="M20 110 A 85 85 0 0 1 180 110"/><path class="rpm" id="rpm-arc" d="M20 110 A 85 85 0 0 1 180 110"/></svg>
+        <div class="spd"><b id="hud-speed">0</b><span>KM/H</span></div>
+        <div class="gear"><i id="hud-gear">N</i></div>
+        <div class="nitro"><i id="hud-nitro"></i><span>NITRO</span></div>
+      </div>
+      <button class="nitro-btn" data-ctl="nitroTap" id="nitro-btn"><svg viewBox="0 0 100 100"><circle class="nb-bg" cx="50" cy="50" r="44"/><circle class="nb-fill" id="nb-fill" cx="50" cy="50" r="44"/></svg><span class="nb-ico">🔥</span><b>NITRO</b></button>
+      <div class="trick" id="hud-trick"></div>
+      <div class="warn hidden" id="hud-warn">WRONG WAY</div>
+      <div class="offtrack hidden" id="hud-off"><b>⚠️ TRACK PAR WAPAS AAO!</b><span>Teleport in <i id="hud-off-n">5</i></span></div>
+      <div class="zone-banner" id="zone-banner"><b></b><small></small></div>
+      <div class="finish-banner hidden" id="finish-banner"><b></b><small></small></div>
+      <div class="takedown hidden" id="takedown"><b></b><small></small></div>
+      <!-- touch controls -->
+      <div id="touch" class="touch">
+        <div class="steer-pad">
+          <button class="tbtn steer" data-ctl="left">◀</button>
+          <button class="tbtn steer" data-ctl="right">▶</button>
+        </div>
+        <div class="joy" data-ctl="joy"><div class="joy-knob"></div></div>
+        <div class="actions">
+          <button class="tbtn kick" data-ctl="kickL">🦵◀</button>
+          <button class="tbtn kick r" data-ctl="kickR">▶🦵</button>
+          <button class="tbtn say" data-ctl="say">💬</button>
+          <button class="tbtn horn" data-ctl="horn">📣</button>
+        </div>
+        <div class="pedals">
+          <button class="tbtn wheelie" data-ctl="wheelie">WHEELIE</button>
+          <button class="tbtn brake" data-ctl="brake">BRAKE<small>tap = DRIFT</small></button>
+          <button class="tbtn gas" data-ctl="gas">GAS</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PAUSE ============ -->
+    <section id="scr-pause" class="screen dim">
+      <div class="menu">
+        <h2>PAUSED</h2>
+        <button class="btn-yellow" data-act="resume">RESUME</button>
+        <button class="btn-dark" data-act="restart">RESTART</button>
+        <button class="btn-dark" data-act="music">🎵 SONGS</button>
+        <button class="btn-dark" data-act="settings">⚙ SETTINGS</button>
+        <button class="btn-dark" data-act="quit">LOBBY</button>
+      </div>
+    </section>
+
+    <!-- ============ RESULTS ============ -->
+    <section id="scr-results" class="screen dim">
+      <div class="results">
+        <h2 id="res-title">RESULTS</h2>
+        <div class="res-sub" id="res-sub">Ramnagar → Ranikhet</div>
+        <div class="res-rows" id="res-rows"></div>
+        <div class="res-best" id="res-best"></div>
+        <div class="res-btns">
+          <button class="btn-dark" data-act="lobby">LOBBY</button>
+          <button class="btn-yellow" data-act="again">RACE AGAIN</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TUTORIAL ============ -->
+    <div id="tutorial" class="hidden">
+      <div class="tut-spot" id="tut-spot"></div>
+      <div class="tut-card" id="tut-card">
+        <div class="tut-step" id="tut-step">1/8</div>
+        <div class="tut-title" id="tut-title"></div>
+        <div class="tut-text" id="tut-text"></div>
+        <div class="tut-btns"><button class="btn-dark" id="tut-skip">SKIP TUTORIAL</button><button class="btn-yellow" id="tut-ok">OK ▶</button></div>
+      </div>
+    </div>
+
+    <!-- ============ PANEL (modal) ============ -->
+    <div id="panel-wrap" class="hidden"><div id="panel"></div></div>
+    <div id="toasts"></div>
+  </div>
+  <div id="rotate"><div class="rot-ico">📱</div><b>Phone ko ghumaiye</b><span>Landscape (aada) mode me best lagega</span></div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Audio Test (dev) — Uttarakhand Riders</title>
+<style>
+  :root { --bg:#14171c; --panel:#1d2229; --line:#2c333d; --fg:#e6e9ee; --dim:#9aa4b2; --acc:#f5b400; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:14px 16px 40px; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
+  h1 { font-size:18px; margin:0 0 10px; }
+  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 8px; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; margin:10px 0; }
+  button { background:#2a313b; color:var(--fg); border:1px solid #3a4350; border-radius:7px; padding:7px 11px; margin:3px; cursor:pointer; font:inherit; }
+  button:hover { border-color:var(--acc); }
+  button.big { background:var(--acc); color:#111; font-weight:700; border:none; padding:10px 18px; }
+  label { display:inline-flex; align-items:center; gap:6px; margin:4px 12px 4px 0; color:var(--dim); }
+  input[type=range] { width:160px; }
+  .row { display:flex; flex-wrap:wrap; align-items:center; }
+  .val { min-width:48px; color:var(--fg); font-variant-numeric:tabular-nums; }
+  #state { color:var(--dim); margin-left:8px; }
+  #log { white-space:pre-wrap; font:12px/1.35 ui-monospace, monospace; color:#b8c2cf; max-height:240px; overflow:auto; }
+  select { background:#2a313b; color:var(--fg); border:1px solid #3a4350; border-radius:6px; padding:6px; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }
+</script>
+</head>
+<body>
+<h1>🏍️ Uttarakhand Riders — Audio test bench</h1>
+<div class="row"><button id="unlock" class="big">🔊 Unlock audio</button><span id="state">locked</span></div>
+<div id="app"></div>
+<section><h2>Log</h2><div id="log"></div></section>
+<script type="module" src="./audio_test.js"></script>
+</body>
+</html>
