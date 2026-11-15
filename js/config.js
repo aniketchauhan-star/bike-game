@@ -110,7 +110,7 @@ export const DEFAULT_SETTINGS = {
   steering: 'buttons',   // 'buttons' | 'tilt'
   tiltSens: 1.0,
   camera: 'chase',       // 'chase' | 'far' | 'helmet'
-  aspect: '16:9',        // '16:9' | 'fill'
+  aspect: 'fill',        // 'fill' (whole screen) | '16:9'
   difficulty: 'medium',
   mode: 'race',
   map: 'ramnagar-ranikhet',
@@ -127,6 +127,7 @@ export const Settings = {
   load() {
     try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); this.data = { ...DEFAULT_SETTINGS, ...s }; } catch { /* private mode */ }
     if (!QUALITY[this.data.quality]) this.data.quality = DEFAULT_SETTINGS.quality;
+    if (!this.data._fillV2) { this.data.aspect = 'fill'; this.data._fillV2 = true; this.save(); } // everyone gets full screen once
     return this.data;
   },
   save() { try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch { /* ignore */ } },

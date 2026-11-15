@@ -116,50 +116,66 @@ function loadMQTT() {
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/mqtt.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
 }
 class RelayTransport {
-  constructor() { this.kind = 'relay'; this.id = 'u' + Math.random().toString(36).slice(2, 10); this.isHost = false; this.players = new Map(); this.started = false; }
-  async connect(code, will) {
-    await loadMQTT();
-    for (const url of BROKERS) {
-      try { await this._try(url, code, will); this.url = url; return; } catch (e) { console.warn('[relay] broker failed', url, e?.message || e); }
-    }
-    throw new Error('Online relay nahi mila — internet check karo');
+  constructor() {
+    this.kind = 'relay'; this.id = 'u' + Math.random().toString(36).slice(2, 10);
+    this.isHost = false; this.players = new Map(); this.started = false;
+    this.conns = []; this.seen = new Set(); this.seenQ = []; this.seq = 0;
   }
-  _try(url, code, will) {
+  /** connect to EVERY public broker that answers (resolve on the first). Messages go out on all of them and are
+   *  de-duplicated on arrival, so two phones always meet as long as they share at least one broker. */
+  connect(code, will) {
+    this.code = code;
+    return loadMQTT().then(() => new Promise((resolve, reject) => {
+      let left = BROKERS.length, ok = false;
+      const fin = () => { if (--left === 0 && !ok) reject(new Error('Online server se connect nahi hua — internet check karo')); };
+      for (const url of BROKERS) this._open(url, code, will).then((c) => {
+        if (this.closing) { try { c.end(true); } catch { /* */ } return fin(); }
+        this.conns.push(c); if (!ok) { ok = true; resolve(); } fin();
+      }, (e) => { console.warn('[relay] broker failed', url, e?.message || e); fin(); });
+    }));
+  }
+  _open(url, code, will) {
     return new Promise((res, rej) => {
-      const c = window.mqtt.connect(url, { clientId: 'ukr_' + this.id, clean: true, keepalive: 20, connectTimeout: 7000, reconnectPeriod: 2000,
-        will: { topic: TOPIC(code), payload: JSON.stringify({ ...will, from: this.id }), qos: 0, retain: false } });
-      const fail = (e) => { try { c.end(true); } catch { /* */ } rej(e || new Error('connect failed')); };
-      const timer = setTimeout(() => fail(new Error('timeout')), 8000);
+      const c = window.mqtt.connect(url, { clientId: 'ukr_' + this.id + '_' + Math.random().toString(36).slice(2, 6), clean: true, keepalive: 20, connectTimeout: 7000, reconnectPeriod: 2500,
+        will: { topic: TOPIC(code), payload: JSON.stringify({ ...will, from: this.id, mid: this.id + ':will' }), qos: 0, retain: false } });
+      let done = false;
+      const timer = setTimeout(() => { if (done) return; done = true; try { c.end(true); } catch { /* */ } rej(new Error('timeout')); }, 9000);
       c.once('connect', () => {
         c.subscribe(TOPIC(code), { qos: 0 }, (err) => {
-          if (err) { clearTimeout(timer); return fail(err); }
-          clearTimeout(timer); this.c = c; this.code = code;
+          if (done) return; done = true; clearTimeout(timer);
+          if (err) { try { c.end(true); } catch { /* */ } return rej(err); }
           c.on('message', (topic, buf) => { let m; try { m = JSON.parse(buf.toString()); } catch { return; } this._recv(m); });
-          c.on('close', () => { if (this.closing) return; });
-          c.on('offline', () => this.onmsg?.({ t: 'net-weak' }));
-          res();
+          res(c);
         });
       });
-      c.once('error', (e) => { clearTimeout(timer); fail(e); });
+      c.once('error', (e) => { if (done) return; done = true; clearTimeout(timer); try { c.end(true); } catch { /* */ } rej(e); });
     });
   }
-  _pub(m, important = false) { if (!this.c) return; m.from = this.id; this.c.publish(TOPIC(this.code), JSON.stringify(m), { qos: important ? 1 : 0 }); }
+  _pub(m, important = false) {
+    m.from = this.id; m.mid = this.id + ':' + (++this.seq);
+    const payload = JSON.stringify(m);
+    for (const c of this.conns) if (c.connected) c.publish(TOPIC(this.code), payload, { qos: important ? 1 : 0 });
+  }
+  _peers(except) { return [{ id: this.id, name: this.name }, ...[...this.players].filter(([id]) => id !== except).map(([id, name]) => ({ id, name }))]; }
   _recv(m) {
     if (!m || m.from === this.id) return;           // our own echo
+    if (m.mid) { if (this.seen.has(m.mid)) return; this.seen.add(m.mid); this.seenQ.push(m.mid); if (this.seenQ.length > 800) this.seen.delete(this.seenQ.shift()); }
     if (m.to && m.to !== this.id) return;           // addressed to someone else
     if (this.isHost) {
       if (m.t === 'join') {
+        if (this.players.has(m.from)) return this._pub({ t: 'joined', to: m.from, code: this.code, id: m.from, hostId: this.id, peers: this._peers(m.from) }, true); // retry: answer again
         if (this.players.size + 1 >= 3) return this._pub({ t: 'error', to: m.from, code: 'full', msg: 'Room full hai (max 3 riders).' }, true);
-        if (this.started) return this._pub({ t: 'error', to: m.from, code: 'started', msg: 'Race already shuru ho chuki hai.' }, true);
-        const peers = [{ id: this.id, name: this.name }, ...[...this.players].map(([id, name]) => ({ id, name }))];
+        if (this.started) return this._pub({ t: 'error', to: m.from, code: 'started', msg: 'Race already shuru ho chuki hai. Host ke LOBBY aane ka wait karo.' }, true);
         this.players.set(m.from, m.name);
-        this._pub({ t: 'joined', to: m.from, code: this.code, id: m.from, hostId: this.id, peers }, true);
+        this._pub({ t: 'joined', to: m.from, code: this.code, id: m.from, hostId: this.id, peers: this._peers(m.from) }, true);
         this.onmsg?.({ t: 'peer-join', id: m.from, name: m.name });
         return;
       }
       if (m.t === 'peer-leave' || m.t === 'bye-player') { if (this.players.delete(m.from)) this.onmsg?.({ t: 'peer-leave', id: m.from }); return; }
     } else {
-      if (m.t === 'joined') { clearTimeout(this.joinTimer); this.hostId = m.hostId; this.onmsg?.(m); return; }
+      if (m.t === 'joined') { if (this.hostId) return; clearTimeout(this.joinTimer); this.hostId = m.hostId; this.onmsg?.(m); return; }
+      if (m.t === 'error' && this.hostId) return;    // late error after we already got in
+      if (m.t === 'error') { clearTimeout(this.joinTimer); this.failed = true; }
       if (m.t === 'host-left' && m.from !== this.hostId) return;
       if (m.t === 'peer-leave' && m.from) { this.onmsg?.({ t: 'peer-leave', id: m.from }); return; }
     }
@@ -174,8 +190,14 @@ class RelayTransport {
   async join(code, name) {
     this.name = name;
     await this.connect(code, { t: 'peer-leave' });
-    this._pub({ t: 'join', name }, true);
-    this.joinTimer = setTimeout(() => this.onmsg?.({ t: 'error', code: 'no-room', msg: 'Room nahi mila. Code check karo (aur host ka game khula ho).' }), 9000);
+    let tries = 0;
+    const attempt = () => {
+      if (this.hostId || this.failed || this.closing) return;
+      if (++tries > 12) { this.onmsg?.({ t: 'error', code: 'no-room', msg: `Room ${code} nahi mila. Host ka game khula ho, aur sab EK HI link par hon.` }); return; }
+      this._pub({ t: 'join', name }, true);                  // repeat every 2 s (host may be busy / switching apps)
+      this.joinTimer = setTimeout(attempt, 2000);
+    };
+    attempt();
   }
   send(m) {
     if (this.isHost && m.t === 'race-start') this.started = true;
@@ -183,11 +205,15 @@ class RelayTransport {
     this._pub(m, m.t !== 'st' && m.t !== 'vc');
   }
   sendTo(id, m) { this._pub({ ...m, to: id }, m.t !== 'st'); }
-  leave() { if (this.c) this._pub({ t: this.isHost ? 'host-left' : 'peer-leave' }, true); setTimeout(() => this.close(), 300); }
-  close() { this.closing = true; try { this.c?.end(true); } catch { /* */ } this.c = null; }
+  leave() { if (this.conns.length) this._pub({ t: this.isHost ? 'host-left' : 'peer-leave' }, true); setTimeout(() => this.close(), 300); }
+  close() { this.closing = true; clearTimeout(this.joinTimer); for (const c of this.conns) { try { c.end(true); } catch { /* */ } } this.conns = []; }
 }
 
-function makeCode() { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 4; i++) c += A[Math.floor(Math.random() * A.length)]; return c; }
+function makeCode() { return String(1000 + Math.floor(Math.random() * 9000)); } // 4 digits: easy to read & type
+/** clean up what people type: letters that look like digits become digits */
+export function normalizeCode(v) {
+  return String(v || '').toUpperCase().replace(/O|Q|D/g, '0').replace(/[IL|]/g, '1').replace(/Z/g, '2').replace(/S/g, '5').replace(/B/g, '8').replace(/G/g, '6').replace(/T/g, '7').replace(/\D/g, '').slice(0, 4);
+}
 
 // ------------------------------------------------------------------ room logic
 export class Multiplayer {
@@ -239,7 +265,7 @@ export class Multiplayer {
       case 'joined':
         this.id = m.id; this.inRoom = true;
         this.room = { code: m.code, hostId: m.hostId, players: [], cpuFill: true, size: 3 };
-        this.tr.sendTo(m.hostId, { t: 'hello', name: this.myName, char: this.myChar });
+        { const hello = () => { if (!this.inRoom || !this.tr || this.room?.players.some(p => p.id === this.id)) return; this.tr.sendTo(m.hostId, { t: 'hello', name: this.myName, char: this.myChar }); this.helloTimer = setTimeout(hello, 2500); }; hello(); }
         this.startPing(); this.app.onRoom?.(this.room); break;
       case 'peer-join': break; // wait for hello
       case 'hello':

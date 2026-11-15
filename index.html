@@ -148,24 +148,34 @@
       <div class="zone-banner" id="zone-banner"><b></b><small></small></div>
       <div class="finish-banner hidden" id="finish-banner"><b></b><small></small></div>
       <div class="takedown hidden" id="takedown"><b></b><small></small></div>
-      <!-- touch controls -->
+      <!-- touch controls: two clusters, every size in --u (1% of screen height, capped by width) so nothing overlaps -->
       <div id="touch" class="touch">
-        <div class="steer-pad">
-          <button class="tbtn steer" data-ctl="left">◀</button>
-          <button class="tbtn steer" data-ctl="right">▶</button>
+        <div class="tc tc-left">
+          <div class="tc-col">
+            <button class="tbtn kick" data-ctl="kickL" aria-label="Laat left"><span class="ic flip">🦵</span><span class="dir">◀</span></button>
+            <button class="tbtn steer" data-ctl="left" aria-label="Left"><span class="arrow">◀</span></button>
+          </div>
+          <div class="tc-col">
+            <button class="tbtn kick" data-ctl="kickR" aria-label="Laat right"><span class="ic">🦵</span><span class="dir">▶</span></button>
+            <button class="tbtn steer" data-ctl="right" aria-label="Right"><span class="arrow">▶</span></button>
+          </div>
+          <div class="joy" data-ctl="joy"><div class="joy-knob"></div></div>
         </div>
-        <div class="joy" data-ctl="joy"><div class="joy-knob"></div></div>
-        <div class="actions">
-          <button class="tbtn kick" data-ctl="kickL">🦵◀</button>
-          <button class="tbtn kick r" data-ctl="kickR">▶🦵</button>
-          <button class="tbtn say" data-ctl="say">💬</button>
-          <button class="tbtn horn" data-ctl="horn">📣</button>
+        <div class="tc tc-right">
+          <div class="tc-col inner">
+            <div class="tc-row">
+              <button class="tbtn mini say" data-ctl="say" aria-label="Dialogue">💬</button>
+              <button class="tbtn mini horn" data-ctl="horn" aria-label="Horn">📣</button>
+            </div>
+            <button class="tbtn wheelie" data-ctl="wheelie"><span class="lbl">WHEELIE</span></button>
+            <button class="tbtn brake" data-ctl="brake"><span class="lbl">BRAKE</span></button>
+          </div>
+          <div class="tc-col outer">
+            <button class="nitro-btn" data-ctl="nitroTap" aria-label="Nitro"><svg viewBox="0 0 100 100"><circle class="nb-bg" cx="50" cy="50" r="44"/><circle class="nb-fill" cx="50" cy="50" r="44"/></svg><span class="nb-ico">🔥</span><b>NITRO</b></button>
+            <button class="tbtn gas" data-ctl="gas"><span class="lbl">GAS</span></button>
+          </div>
         </div>
-        <div class="pedals">
-          <button class="tbtn wheelie" data-ctl="wheelie">WHEELIE</button>
-          <button class="tbtn brake" data-ctl="brake">BRAKE<small>tap = DRIFT</small></button>
-          <button class="tbtn gas" data-ctl="gas">GAS</button>
-        </div>
+      </div>
       </div>
     </section>
 

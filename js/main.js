@@ -68,6 +68,7 @@ function layout() {
   if (S.aspect !== 'fill') { if (W / H > 16 / 9) { h = H; w = Math.round(H * 16 / 9); } else { w = W; h = Math.round(W * 9 / 16); } }
   gameEl.style.width = w + 'px'; gameEl.style.height = h + 'px';
   gameEl.style.fontSize = (Math.min(w, h * 16 / 9) / 100) + 'px';
+  gameEl.style.setProperty('--u', Math.min(h / 100, w / 178) + 'px'); // touch-control unit (same look on every screen shape)
   const dpr = Math.min(devicePixelRatio || 1, quality.maxDpr) * quality.pixelRatio * drs.scale;
   renderer.setPixelRatio(dpr); renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.updateProjectionMatrix();

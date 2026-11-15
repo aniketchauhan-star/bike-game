@@ -153,7 +153,10 @@ function wsControl(client, opcode, payload = Buffer.alloc(0)) {
   try { client.socket.write(Buffer.concat([Buffer.from([0x80 | opcode, payload.length]), payload])); } catch { /* ignore */ }
 }
 
-function makeCode() {
+function makeCode() { // 4 digits
+  let c; do { c = String(1000 + Math.floor(Math.random() * 9000)); } while (rooms.has(c)); return c;
+}
+function makeCodeOld() {
   const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   let c;
   do { c = ''; for (let i = 0; i < 4; i++) c += A[Math.floor(Math.random() * A.length)]; } while (rooms.has(c));

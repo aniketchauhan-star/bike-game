@@ -37,8 +37,8 @@ Game browser me khul jayega: `http://localhost:8080`
 - Earphones lagao, warna phone ka speaker (engine, gaane) mic me wapas chala jayega.
 
 ### 👥 Multiplayer (doston ke saath, apne-apne phone se)
-1. Ek dost **MULTIPLAYER → CREATE ROOM** dabaye. 4-letter code aur QR code aayega.
-2. Baaki dost **JOIN** me code daalein, ya QR scan karein.
+1. Ek dost **MULTIPLAYER → CREATE ROOM** dabaye. **4-number code** (jaise 4827) aur QR code aayega.
+2. Baaki dost **JOIN** me code daalein (number keypad khulega), ya QR scan karein. Sab log **ek hi link** kholein — host ka game khula rehna chahiye; join 20 sec tak khud try karta rehta hai.
 3. Har koi apna rider chune (Mayank / Tushar / Himanshu). Khaali jagah par CPU rider bhi daal sakte ho.
 4. Host **Race kitne ki?** me **2 RIDERS** ya **3 RIDERS** chune (khaali jagah CPU bharega), phir **START RACE** dabaye. Sabki race ek saath shuru hogi.
 

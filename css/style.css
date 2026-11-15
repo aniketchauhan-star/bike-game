@@ -539,3 +539,69 @@ canvas { touch-action: none; outline: none; }
 .ios-tip p { font-size: 1.35em; line-height: 1.35; color: #dfe5f1; margin: .2em 0 .6em; }
 .ios-tip ol { margin: 0; padding-left: 1.4em; display: grid; gap: .55em; font-size: 1.5em; line-height: 1.3; }
 .ios-tip .ios-ico { display: inline-block; margin-left: .3em; }
+
+/* full screen on every device: UI stays clear of notches / rounded corners / home bar, the 3D view fills everything */
+.screen { top: env(safe-area-inset-top, 0px); right: env(safe-area-inset-right, 0px); bottom: env(safe-area-inset-bottom, 0px); left: env(safe-area-inset-left, 0px); }
+.title-bg { top: calc(-1 * env(safe-area-inset-top, 0px)); right: calc(-1 * env(safe-area-inset-right, 0px)); bottom: calc(-1 * env(safe-area-inset-bottom, 0px)); left: calc(-1 * env(safe-area-inset-left, 0px)); }
+html, body, #stage { width: 100%; height: 100%; }
+@supports (height: 100dvh) { #stage { height: 100dvh; } }
+
+/* ===================== touch controls v3: clean clusters, labels inside, no overlaps ===================== */
+#game { --u: 3.9px; }
+.is-touch #nitro-btn { display: none; }                       /* desktop nitro button (touch has its own in the cluster) */
+.touch { position: absolute; inset: 0; height: auto; pointer-events: none; }
+.tc { position: absolute; bottom: calc(var(--u) * 4); display: flex; align-items: flex-end; gap: calc(var(--u) * 3); pointer-events: none; }
+.tc-left { left: calc(var(--u) * 3); }
+.tc-right { right: calc(var(--u) * 3); }
+.tc-col { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 3); }
+.tc-row { display: flex; gap: calc(var(--u) * 3); }
+.tc .tbtn, .tc .nitro-btn {
+  position: relative; inset: auto; left: auto; right: auto; top: auto; bottom: auto; margin: 0; padding: 0;
+  flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  color: #fff; font-family: 'Teko', sans-serif; font-weight: 600; letter-spacing: .06em; line-height: 1;
+  white-space: nowrap; overflow: hidden; text-shadow: 0 1px 3px rgba(0,0,0,.7);
+  pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; transform: none;
+  transition: transform .08s ease, filter .08s ease, box-shadow .12s ease;
+}
+.tc .tbtn {
+  background: radial-gradient(circle at 50% 32%, rgba(255,255,255,.18), rgba(12,16,26,.62) 64%);
+  border: calc(var(--u) * .55) solid rgba(255,255,255,.42);
+  box-shadow: 0 calc(var(--u) * .7) calc(var(--u) * 1.8) rgba(0,0,0,.5), inset 0 0 calc(var(--u) * 2.4) rgba(255,255,255,.07);
+}
+.tc .tbtn.on, .tc .nitro-btn:active { transform: scale(.92); filter: brightness(1.35); }
+.tc .lbl { display: block; padding-top: .12em; }               /* Teko sits a little high — optical centring */
+/* steering */
+.tc .steer { width: calc(var(--u) * 25); height: calc(var(--u) * 25); font-size: calc(var(--u) * 9); }
+.tc .steer .arrow { display: block; transform: translateY(.04em); }
+/* kicks */
+.tc .kick { width: calc(var(--u) * 14); height: calc(var(--u) * 14); font-size: calc(var(--u) * 6);
+  border-color: rgba(255,198,26,.8); background: radial-gradient(circle at 50% 32%, rgba(255,198,26,.42), rgba(46,30,0,.66) 66%); }
+.tc .kick .ic { display: block; }
+.tc .kick .flip { transform: scaleX(-1); }
+.tc .kick .dir { position: absolute; right: 13%; bottom: 11%; font-size: .42em; color: #ffd34d; }
+.tc-col:first-child .kick .dir { right: auto; left: 13%; }
+/* pedals */
+.tc .gas { width: calc(var(--u) * 28); height: calc(var(--u) * 28); font-size: calc(var(--u) * 7);
+  border-color: #5be38f; background: radial-gradient(circle at 50% 32%, rgba(91,227,143,.55), rgba(6,58,28,.78) 66%); }
+.tc .brake { width: calc(var(--u) * 20); height: calc(var(--u) * 20); font-size: calc(var(--u) * 4.6);
+  border-color: #ff6f61; background: radial-gradient(circle at 50% 32%, rgba(255,111,97,.5), rgba(84,10,10,.78) 66%); }
+.tc .wheelie { width: calc(var(--u) * 22); height: calc(var(--u) * 11); border-radius: calc(var(--u) * 5.5); font-size: calc(var(--u) * 4);
+  border-color: #ffb04a; background: linear-gradient(180deg, rgba(255,176,74,.6), rgba(92,46,0,.8)); }
+.tc .wheelie.active { box-shadow: 0 0 calc(var(--u) * 3) #ffb04a; }
+.tc .mini { width: calc(var(--u) * 12); height: calc(var(--u) * 12); font-size: calc(var(--u) * 5); }
+/* nitro (ring = how full the tank is) */
+.tc .nitro-btn { width: calc(var(--u) * 21); height: calc(var(--u) * 21); flex-direction: column; gap: calc(var(--u) * .3); border: none;
+  background: radial-gradient(circle at 50% 38%, rgba(86,116,255,.68), rgba(10,14,42,.85) 70%); box-shadow: 0 calc(var(--u) * .7) calc(var(--u) * 1.8) rgba(0,0,0,.5); }
+.tc .nitro-btn svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.tc .nitro-btn .nb-ico { font-size: calc(var(--u) * 6); line-height: 1; }
+.tc .nitro-btn b { font-size: calc(var(--u) * 3.5); letter-spacing: .12em; }
+/* joystick mode / tilt mode / auto gas / left-handed */
+.tc-left .joy { position: absolute; left: 0; bottom: 0; width: calc(var(--u) * 34); height: calc(var(--u) * 34); margin: 0; pointer-events: auto; }
+.tc-left .joy .joy-knob { width: 40%; height: 40%; margin: -20% 0 0 -20%; }
+.ctl-joystick .tc-left .steer, .ctl-tilt .tc-left .steer { display: none; }
+.ctl-joystick .tc-left { padding-bottom: calc(var(--u) * 37); }
+.ctl-joystick .tc-left .joy { display: block; }
+.auto-gas .tc .gas { display: none; }
+.auto-gas .tc .brake { width: calc(var(--u) * 26); height: calc(var(--u) * 26); font-size: calc(var(--u) * 5.6); }
+.lefty .tc-left { left: auto; right: calc(var(--u) * 3); }
+.lefty .tc-right { right: auto; left: calc(var(--u) * 3); flex-direction: row-reverse; }

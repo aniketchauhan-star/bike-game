@@ -3,6 +3,7 @@ import { CHARACTERS, BIKES, MODES, TIMES_OF_DAY, DIFFICULTIES, QUALITY, TIPS, ch
 import { MusicPlayer } from '../audio/music.js';
 import { fmtTime } from '../game/race.js';
 import { Radar } from './radar.js';
+import { normalizeCode } from '../net/net.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -152,7 +153,7 @@ export class UI {
       <div class="set-row"><label>Quality<small>Phone garam ho to LOW</small></label>${seg('quality', Object.values(QUALITY).map(q => [q.id, q.name]))}</div>
       <div class="set-row"><label>FPS Limit</label>${seg('fpsLimit', [[30, '30'], [60, '60'], [0, 'MAX']])}</div>
       <div class="set-row"><label>Show FPS</label>${seg('showFps', [[true, 'ON'], [false, 'OFF']])}</div>
-      <div class="set-row"><label>Screen<small>16:9 ya poori screen</small></label>${seg('aspect', [['16:9', '16:9'], ['fill', 'FULL']])}</div>
+      <div class="set-row"><label>Screen<small>Poori screen ya 16:9</small></label>${seg('aspect', [['fill', 'FULL SCREEN'], ['16:9', '16:9']])}</div>
       <div class="set-row"><label>Camera</label>${seg('camera', [['chase', 'CHASE'], ['far', 'FAR'], ['helmet', 'HELMET']])}</div>
       <div class="set-h">SOUND</div>
       <div class="set-row"><label>Master</label>${range('master', 0, 1, 0.05)}</div>
@@ -204,12 +205,13 @@ export class UI {
       <div class="set-row"><label>Tumhara naam</label><input id="mp-name" class="code-input" style="font-size:2em;letter-spacing:.1em" maxlength="14" value="${name}"></div>
       <div class="mp-box">
         <div class="box"><h4>ROOM BANAO</h4><p>Room code banega — doston ko code ya QR bhejo. Max 3 riders.</p><button class="btn-yellow" id="mp-create">CREATE ROOM</button></div>
-        <div class="box"><h4>ROOM JOIN KARO</h4><p>Dost ka 4-letter code daalo.</p><input id="mp-code" class="code-input" maxlength="4" placeholder="ABCD" value="${urlRoom}"><div style="margin-top:.8em"><button class="btn-blue" id="mp-join">JOIN</button></div></div>
+        <div class="box"><h4>ROOM JOIN KARO</h4><p>Dost ka 4-number code daalo.</p><input id="mp-code" class="code-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="1234" value="${normalizeCode(urlRoom)}"><div style="margin-top:.8em"><button class="btn-blue" id="mp-join">JOIN</button></div></div>
       </div>
       <div class="mp-note" id="mp-status">Sab phones ek hi Wi-Fi par hon (ya same internet link khole). Game ko <b>node server.js</b> se chalao taaki multiplayer kaam kare.</div>`);
     const nm = () => { const v = $('#mp-name').value.trim().slice(0, 14) || name; app.setSetting('playerName', v); return v; };
     $('#mp-create').onclick = () => { this.mpStatus('Room ban raha hai...'); app.mpCreate(nm()); };
-    $('#mp-join').onclick = () => { const code = $('#mp-code').value.trim().toUpperCase(); if (code.length < 4) return this.mpStatus('4-letter code daalo'); this.mpStatus('Join ho rahe hain...'); app.mpJoin(code, nm()); };
+    const ci = $('#mp-code'); ci.oninput = () => { const v = normalizeCode(ci.value); if (ci.value !== v) ci.value = v; };
+    $('#mp-join').onclick = () => { const code = normalizeCode(ci.value); if (code.length < 4) return this.mpStatus('4-number code daalo (jaise 4827)'); this.mpStatus(`Room ${code} dhoondh rahe hain... (20 sec tak try karega)`); app.mpJoin(code, nm()); };
   }
   mpStatus(t) { const el = $('#mp-status'); if (el) el.innerHTML = t; }
   renderRoom() {
@@ -288,11 +290,11 @@ export class UI {
     const nw = Math.round(h.nitro * 100);
     if (c.nitro !== nw) { c.nitro = nw; const n = document.getElementById('hud-nitro'); n.style.width = nw + '%'; n.parentElement.classList.toggle('full', nw >= 99); }
     const wl = h.wheelieT > 0 ? `${Math.ceil(h.wheelieT)}s` : 'WHEELIE';
-    if (c.wl !== wl) { c.wl = wl; const b = document.querySelector('.tbtn.wheelie'); if (b) { b.textContent = wl; b.classList.toggle('on', h.wheelieT > 0); } }
+    if (c.wl !== wl) { c.wl = wl; const b = document.querySelector('.tbtn.wheelie'); if (b) { (b.querySelector('.lbl') || b).textContent = wl; b.classList.toggle('active', h.wheelieT > 0); } }
     const nf = Math.round((1 - Math.min(1, h.nitro)) * 276.5);
-    if (c.nf !== nf) { c.nf = nf; const f = document.getElementById('nb-fill'); if (f) f.style.strokeDashoffset = nf; }
+    if (c.nf !== nf) { c.nf = nf; document.querySelectorAll('.nb-fill').forEach(f => { f.style.strokeDashoffset = nf; }); }
     const nst = (h.nitro >= 0.99 ? 'full' : '') + (h.boosting ? ' active' : '');
-    if (c.nst !== nst) { c.nst = nst; const b = document.getElementById('nitro-btn'); if (b) { b.classList.toggle('full', h.nitro >= 0.99); b.classList.toggle('active', !!h.boosting); } document.getElementById('vignette')?.classList.toggle('boost', !!h.boosting); }
+    if (c.nst !== nst) { c.nst = nst; document.querySelectorAll('.nitro-btn').forEach(b => { b.classList.toggle('full', h.nitro >= 0.99); b.classList.toggle('active', !!h.boosting); }); document.getElementById('vignette')?.classList.toggle('boost', !!h.boosting); }
     const now = performance.now();
     if (this.radar && (!this._rT || now - this._rT > (this.app.quality?.phone ? 66 : 33))) {
       this._rT = now; const P = this.app.race?.player;
