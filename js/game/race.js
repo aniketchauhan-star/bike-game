@@ -7,6 +7,7 @@ import { AIController } from './ai.js';
 import { CameraRig } from './camera.js';
 import { Voice } from '../audio/voice.js';
 import { Samples, COUNTDOWN_TIMES } from '../audio/samples.js';
+import { BusMusic } from '../audio/busmusic.js';
 import { charById, BIKES, DIFFICULTIES, Records } from '../config.js';
 
 const GRID = [{ ds: -4, d: -2.3 }, { ds: -7, d: 0.3 }, { ds: -10, d: 2.7 }];
@@ -48,6 +49,12 @@ export class Race {
       if (e.kind === 'ai') { const ai = new AIController(r, this.T, this.skill, i + 3); ai.kickCD = 3 + i; ai.rubber = this.diff.rubber; this.ai.set(r.id, ai); }
     });
     if (!this.player) this.player = this.racers[0];
+    if (this.net) for (const r of this.racers) r.netDelay = this.net.transport === 'relay' ? 240 : 120;
+    // Pahadi songs from the buses (moving traffic + the ones parked at Ramnagar bus stand)
+    this.busMusic = app.busMusic || (app.busMusic = new BusMusic());
+    const pop = this.world.pop;
+    this.busMusic.setBuses([...(pop?.traffic || []).filter(t => t.kind === 'bus').map(t => ({ pos: t.g.position })), ...(pop?.special?.parkedBuses || []).map(g => ({ pos: g.position }))]);
+    this.busMusic.volume = 0.9 * (app.settings.sfx ?? 0.9);
     this.racers.forEach(r => r.syncVisual(0, 0));
     this.buildIntro();
   }
@@ -56,6 +63,7 @@ export class Race {
     for (const r of this.racers) r.detach();
     this.racers = [];
     Samples.setLoop('forest', 0); Samples.setLoop('wind', 0);
+    this.busMusic?.stopAll();
     this.app.audio?.setRide?.({ speed: 0, skid: 0, scrape: 0, offroad: 0 });
     this.app.ui.offTrack(null);
   }
@@ -263,7 +271,7 @@ export class Race {
     if (this.net) {
       this.netT -= dt;
       if (this.netT <= 0) {
-        this.netT = 1 / 15;
+        this.netT = this.net.transport === 'relay' ? 1 / 12 : 1 / 15;
         this.net.send({ t: 'st', id: P.id, ...P.snapshot() });
         if (this.isHost) for (const r of racers) if (r.kind === 'ai') this.net.send({ t: 'st', id: r.id, ...r.snapshot() });
       }
@@ -339,6 +347,7 @@ export class Race {
     app.audio?.setListener?.(cam.position, fwd);
     for (const r of this.racers) r.updateAudio(dt);
     if (this.state !== 'intro') app.audio?.setRide?.({ speed: P.v, skid: P.skid, scrape: P.scrape, offroad: P.offroad * smoothstep(3, 15, P.v) });
+    this.busMusic?.update(dt, cam.position);
     const amb = this.world.ambience(P.s, P.root.position);
     app.audio?.setAmbience?.(amb);
     Samples.setLoop('forest', clamp(amb.forest * 0.75 + amb.river * 0.25, 0, 1) * 0.9);

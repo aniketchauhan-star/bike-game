@@ -38,7 +38,9 @@ function loadPeerJS() {
   if (window.peerjs?.Peer || window.Peer) return Promise.resolve();
   return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/peerjs.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
 }
-const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] };
+const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' },
+  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turns:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' }] };
+export { ICE };
 
 class P2PTransport {
   constructor() { this.kind = 'p2p'; this.conns = new Map(); this.id = null; this.isHost = false; this.names = new Map(); }
@@ -103,6 +105,88 @@ class P2PTransport {
   close() { try { this.peer?.destroy(); } catch { /* */ } }
 }
 
+
+// ------------------------------------------------------------------ Online relay transport (static hosting like Vercel / Netlify)
+// Uses free public MQTT-over-WebSocket brokers as a message relay, so rooms work across any network (Wi-Fi, 4G/5G),
+// with no game server. Host logic stays in the host's browser, exactly like the WebSocket server version.
+const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://test.mosquitto.org:8081/mqtt', 'wss://broker.hivemq.com:8884/mqtt'];
+const TOPIC = (code) => `uttarakhand-riders/v2/room/${code}`;
+function loadMQTT() {
+  if (window.mqtt) return Promise.resolve();
+  return new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'vendor/mqtt.min.js'; s.onload = res; s.onerror = rej; document.head.appendChild(s); });
+}
+class RelayTransport {
+  constructor() { this.kind = 'relay'; this.id = 'u' + Math.random().toString(36).slice(2, 10); this.isHost = false; this.players = new Map(); this.started = false; }
+  async connect(code, will) {
+    await loadMQTT();
+    for (const url of BROKERS) {
+      try { await this._try(url, code, will); this.url = url; return; } catch (e) { console.warn('[relay] broker failed', url, e?.message || e); }
+    }
+    throw new Error('Online relay nahi mila — internet check karo');
+  }
+  _try(url, code, will) {
+    return new Promise((res, rej) => {
+      const c = window.mqtt.connect(url, { clientId: 'ukr_' + this.id, clean: true, keepalive: 20, connectTimeout: 7000, reconnectPeriod: 2000,
+        will: { topic: TOPIC(code), payload: JSON.stringify({ ...will, from: this.id }), qos: 0, retain: false } });
+      const fail = (e) => { try { c.end(true); } catch { /* */ } rej(e || new Error('connect failed')); };
+      const timer = setTimeout(() => fail(new Error('timeout')), 8000);
+      c.once('connect', () => {
+        c.subscribe(TOPIC(code), { qos: 0 }, (err) => {
+          if (err) { clearTimeout(timer); return fail(err); }
+          clearTimeout(timer); this.c = c; this.code = code;
+          c.on('message', (topic, buf) => { let m; try { m = JSON.parse(buf.toString()); } catch { return; } this._recv(m); });
+          c.on('close', () => { if (this.closing) return; });
+          c.on('offline', () => this.onmsg?.({ t: 'net-weak' }));
+          res();
+        });
+      });
+      c.once('error', (e) => { clearTimeout(timer); fail(e); });
+    });
+  }
+  _pub(m, important = false) { if (!this.c) return; m.from = this.id; this.c.publish(TOPIC(this.code), JSON.stringify(m), { qos: important ? 1 : 0 }); }
+  _recv(m) {
+    if (!m || m.from === this.id) return;           // our own echo
+    if (m.to && m.to !== this.id) return;           // addressed to someone else
+    if (this.isHost) {
+      if (m.t === 'join') {
+        if (this.players.size + 1 >= 3) return this._pub({ t: 'error', to: m.from, code: 'full', msg: 'Room full hai (max 3 riders).' }, true);
+        if (this.started) return this._pub({ t: 'error', to: m.from, code: 'started', msg: 'Race already shuru ho chuki hai.' }, true);
+        const peers = [{ id: this.id, name: this.name }, ...[...this.players].map(([id, name]) => ({ id, name }))];
+        this.players.set(m.from, m.name);
+        this._pub({ t: 'joined', to: m.from, code: this.code, id: m.from, hostId: this.id, peers }, true);
+        this.onmsg?.({ t: 'peer-join', id: m.from, name: m.name });
+        return;
+      }
+      if (m.t === 'peer-leave' || m.t === 'bye-player') { if (this.players.delete(m.from)) this.onmsg?.({ t: 'peer-leave', id: m.from }); return; }
+    } else {
+      if (m.t === 'joined') { clearTimeout(this.joinTimer); this.hostId = m.hostId; this.onmsg?.(m); return; }
+      if (m.t === 'host-left' && m.from !== this.hostId) return;
+      if (m.t === 'peer-leave' && m.from) { this.onmsg?.({ t: 'peer-leave', id: m.from }); return; }
+    }
+    this.onmsg?.(m);
+  }
+  async create(name) {
+    this.isHost = true; this.name = name;
+    const code = makeCode();
+    await this.connect(code, { t: 'host-left' });
+    this.onmsg?.({ t: 'created', code, id: this.id, hostId: this.id });
+  }
+  async join(code, name) {
+    this.name = name;
+    await this.connect(code, { t: 'peer-leave' });
+    this._pub({ t: 'join', name }, true);
+    this.joinTimer = setTimeout(() => this.onmsg?.({ t: 'error', code: 'no-room', msg: 'Room nahi mila. Code check karo (aur host ka game khula ho).' }), 9000);
+  }
+  send(m) {
+    if (this.isHost && m.t === 'race-start') this.started = true;
+    if (this.isHost && m.t === 'back-to-lobby') this.started = false;
+    this._pub(m, m.t !== 'st' && m.t !== 'vc');
+  }
+  sendTo(id, m) { this._pub({ ...m, to: id }, m.t !== 'st'); }
+  leave() { if (this.c) this._pub({ t: this.isHost ? 'host-left' : 'peer-leave' }, true); setTimeout(() => this.close(), 300); }
+  close() { this.closing = true; try { this.c?.end(true); } catch { /* */ } this.c = null; }
+}
+
 function makeCode() { const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 4; i++) c += A[Math.floor(Math.random() * A.length)]; return c; }
 
 // ------------------------------------------------------------------ room logic
@@ -118,16 +202,26 @@ export class Multiplayer {
   async ensure(preferP2P = false) {
     if (this.tr) return;
     if (!preferP2P && location.protocol.startsWith('http')) {
-      try { this.tr = await WSTransport.open(); } catch { this.tr = null; }
+      // only try the WebSocket server if this site is actually our node server (on Vercel /api/info does not exist)
+      let hasServer = false;
+      try { const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 1500); const r = await fetch('api/info', { cache: 'no-store', signal: ctl.signal }); clearTimeout(tm); hasServer = r.ok && !!(await r.json()).ws; } catch { hasServer = false; }
+      if (hasServer) { try { this.tr = await WSTransport.open(); } catch { this.tr = null; } }
     }
+    if (!this.tr && !preferP2P) this.tr = new RelayTransport();
     if (!this.tr) this.tr = new P2PTransport();
     this.tr.onmsg = (m) => this.onMsg(m);
     this.tr.onclose = () => { if (this.inRoom) this.app.onMpClosed?.('Server se connection toot gaya'); this.reset(); };
   }
   reset() { this.inRoom = false; this.room = null; clearInterval(this.pingTimer); this.tr?.close?.(); this.tr = null; }
 
-  async create(name, char) { await this.ensure(); this.myName = name; this.myChar = char; this.tr.create(name); }
-  async join(code, name, char) { await this.ensure(); this.myName = name; this.myChar = char; this.tr.join(code, name); }
+  async create(name, char) {
+    await this.ensure(); this.myName = name; this.myChar = char;
+    try { await this.tr.create(name); } catch (e) { if (this.tr.kind === 'relay') { this.tr = null; await this.ensure(true); await this.tr.create(name); } else throw e; }
+  }
+  async join(code, name, char) {
+    await this.ensure(); this.myName = name; this.myChar = char;
+    try { await this.tr.join(code, name); } catch (e) { if (this.tr.kind === 'relay') { this.tr = null; await this.ensure(true); await this.tr.join(code, name); } else throw e; }
+  }
   leave() { try { this.tr?.leave(); } catch { /* */ } this.reset(); }
   send(m) { this.tr?.send(m); }
 
@@ -140,11 +234,11 @@ export class Multiplayer {
     switch (m.t) {
       case 'created':
         this.id = m.id; this.inRoom = true;
-        this.room = { code: m.code, hostId: m.id, players: [{ id: m.id, name: this.myName, char: this.myChar }], cpuFill: true };
+        this.room = { code: m.code, hostId: m.id, players: [{ id: m.id, name: this.myName, char: this.myChar }], cpuFill: true, size: 3 };
         this.app.onRoom?.(this.room); break;
       case 'joined':
         this.id = m.id; this.inRoom = true;
-        this.room = { code: m.code, hostId: m.hostId, players: [], cpuFill: true };
+        this.room = { code: m.code, hostId: m.hostId, players: [], cpuFill: true, size: 3 };
         this.tr.sendTo(m.hostId, { t: 'hello', name: this.myName, char: this.myChar });
         this.startPing(); this.app.onRoom?.(this.room); break;
       case 'peer-join': break; // wait for hello
@@ -186,11 +280,16 @@ export class Multiplayer {
     else this.tr.sendTo(this.room.hostId, { t: 'pick', char });
   }
   setCpu(on) { if (!this.isHost) return; this.room.cpuFill = on; this.broadcastRoom(); }
+  setSize(n) { if (!this.isHost) return; this.room.size = n; this.room.cpuFill = true; this.broadcastRoom(); }
+  /** riders in the race = all humans, plus CPU riders up to the chosen size */
+  raceSize() { return Math.max(this.room?.players.length || 1, this.room?.size || 3); }
+  cpuCount() { return Math.max(0, this.raceSize() - (this.room?.players.length || 0)); }
 
   /** host: start the race for everyone. returns the start message */
   startRace(opts) {
     const entrants = this.room.players.map(p => ({ id: p.id, charId: p.char, name: p.name, human: true }));
-    if (this.room.cpuFill) for (const c of CHARACTERS) if (!entrants.some(e => e.charId === c.id)) entrants.push({ id: 'cpu-' + c.id, charId: c.id, name: c.name, human: false });
+    const size = this.raceSize();
+    for (const c of CHARACTERS) if (entrants.length < size && !entrants.some(e => e.charId === c.id)) entrants.push({ id: 'cpu-' + c.id, charId: c.id, name: c.name, human: false });
     const msg = { t: 'race-start', entrants, ...opts };
     this.send(msg);
     return msg;
@@ -205,7 +304,7 @@ export class Multiplayer {
       // on plain http: hand out the https link so friends can use the mic for voice chat
       try { const info = await (await fetch('/api/info')).json(); if (info.httpsPort) base = `https://${location.hostname}:${info.httpsPort}/`; } catch { /* */ }
     }
-    return base + (base.includes('?') ? '&' : '?') + 'room=' + code;
+    return base.split('?')[0] + '?room=' + code;
   }
 }
 

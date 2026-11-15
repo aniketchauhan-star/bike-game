@@ -20,6 +20,13 @@ export const impostorUniforms = {
   uRNear: { value: 120 }, uRFar: { value: 1400 },
 };
 
+// upload only the used part of an instance buffer (much less GPU traffic on phones)
+function upload(mesh, count) {
+  mesh.count = count; const a = mesh.instanceMatrix;
+  if (a.clearUpdateRanges) { a.clearUpdateRanges(); if (count > 0) a.addUpdateRange(0, count * 16); }
+  a.needsUpdate = true;
+}
+
 export class Forest {
   constructor(track, terrain, rivers, quality, reserved = []) {
     this.track = track; this.terrain = terrain; this.rivers = rivers; this.quality = quality;
@@ -29,7 +36,9 @@ export class Forest {
     this.shadow = new Map();
     this.imp = new Map();
     this.rocks = [];
-    this.rNear = quality.id === 'high' ? 130 : quality.id === 'medium' ? 90 : 60;
+    this.rNear = quality.treeLowR ?? (quality.id === 'high' ? 130 : quality.id === 'medium' ? 90 : 60);
+    this.rHigh = Math.min(this.rNear, quality.treeHighR ?? this.rNear);
+    this.mid = new Map(); // kind -> InstancedMesh (opaque low LOD between rHigh and rNear)
     impostorUniforms.uRNear.value = this.rNear - 4;
     this.lastCam = new THREE.Vector3(1e9, 0, 0);
   }
@@ -110,7 +119,13 @@ export class Forest {
       near.count = 0; near.frustumCulled = false; near.castShadow = false; near.receiveShadow = true;
       near.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
       scene.add(near); this.near.set(kind, near);
-      if (this.quality.shadows && kind !== 'bush') {
+      if (this.rHigh < this.rNear) {
+        const mid = new THREE.InstancedMesh(lo.geometry, lo.material, cap);
+        mid.count = 0; mid.frustumCulled = false; mid.castShadow = false; mid.receiveShadow = true;
+        mid.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        scene.add(mid); this.mid.set(kind, mid);
+      }
+      if (this.quality.shadows && this.quality.shadowCasters === 'all' && kind !== 'bush') {
         const shMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
         const sh = new THREE.InstancedMesh(lo.geometry, shMat, Math.min(n, 400));
         sh.count = 0; sh.frustumCulled = false; sh.castShadow = true; sh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -210,11 +225,11 @@ export class Forest {
     updateVegetation(time);
     if (this.lastCam.distanceToSquared(camPos) < 25) return;
     this.lastCam.copy(camPos);
-    const R = this.rNear + 12, R2 = R * R, RS2 = 50 * 50, B = 64;
+    const R = this.rNear + 12, R2 = R * R, RS2 = 50 * 50, B = 64, RH = this.rHigh + 6, RH2 = RH * RH;
     const m = new THREE.Matrix4(), qn = new THREE.Quaternion(), sv = new THREE.Vector3(), pv = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
     for (const [kind, t] of this.trees) {
-      const near = this.near.get(kind), sh = this.shadow.get(kind);
-      let c = 0, cs = 0; const cap = near.instanceMatrix.count, capS = sh ? sh.instanceMatrix.count : 0;
+      const near = this.near.get(kind), sh = this.shadow.get(kind), mid = this.mid.get(kind);
+      let c = 0, cs = 0, cm = 0; const cap = near.instanceMatrix.count, capS = sh ? sh.instanceMatrix.count : 0;
       const bx0 = Math.floor((camPos.x - R) / B), bx1 = Math.floor((camPos.x + R) / B), bz0 = Math.floor((camPos.z - R) / B), bz1 = Math.floor((camPos.z + R) / B);
       for (let bx = bx0; bx <= bx1; bx++) for (let bz = bz0; bz <= bz1; bz++) {
         const arr = t.bins.get(bx * 7919 + bz); if (!arr) continue;
@@ -223,12 +238,12 @@ export class Forest {
           if (d2 > R2) continue;
           qn.setFromAxisAngle(up, t.rot[i]); sv.setScalar(t.sc[i]); pv.set(t.x[i], t.y[i], t.z[i]);
           m.compose(pv, qn, sv);
-          if (c < cap) near.setMatrixAt(c++, m);
+          if (mid && d2 > RH2) { if (cm < cap) mid.setMatrixAt(cm++, m); }
+          else if (c < cap) near.setMatrixAt(c++, m);
           if (sh && d2 < RS2 && cs < capS) sh.setMatrixAt(cs++, m);
         }
       }
-      near.count = c; near.instanceMatrix.needsUpdate = true;
-      if (sh) { sh.count = cs; sh.instanceMatrix.needsUpdate = true; }
+      upload(near, c); if (mid) upload(mid, cm); if (sh) upload(sh, cs);
     }
   }
 }

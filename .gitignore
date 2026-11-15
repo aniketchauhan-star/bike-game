@@ -1,0 +1,11 @@
+# OS / editor junk
+.DS_Store
+node_modules/
+
+# auto-generated HTTPS certificate for the local game server (contains a private key) — regenerated on start
+.cert/
+
+# private source material (friends' photos, raw recordings, full mashup) — the game only uses the processed files in assets/
+characters images*/
+voice overs*/
+game sound/

@@ -80,12 +80,27 @@ export const DIFFICULTIES = [
 
 // Graphics quality presets
 export const QUALITY = {
-  low:    { id: 'low', name: 'LOW', pixelRatio: 0.8, maxDpr: 1, shadows: false, shadowSize: 0, antialias: false, treeDensity: 0.35, view: 650, fog: 1.35, grass: false, people: 0.5 },
-  medium: { id: 'medium', name: 'MEDIUM', pixelRatio: 1, maxDpr: 1.5, shadows: true, shadowSize: 1024, antialias: false, treeDensity: 0.6, view: 950, fog: 1.1, grass: true, people: 0.8 },
-  high:   { id: 'high', name: 'HIGH', pixelRatio: 1, maxDpr: 2, shadows: true, shadowSize: 2048, antialias: true, treeDensity: 1.0, view: 1400, fog: 1.0, grass: true, people: 1 },
+  low:    { id: 'low', name: 'LOW', pixelRatio: 0.85, maxDpr: 1, shadows: false, shadowSize: 0, antialias: false, treeDensity: 0.38, people: 0.5,
+            treeHighR: 0, treeLowR: 60, cullScale: 0.6, bakeSky: true, triplanar: false, lite: true, shadowCasters: 'none', viewFar: 1400, drsMin: 0.55 },
+  medium: { id: 'medium', name: 'MEDIUM', pixelRatio: 1, maxDpr: 1.5, shadows: true, shadowSize: 1024, antialias: false, treeDensity: 0.6, people: 0.8,
+            treeHighR: 90, treeLowR: 90, cullScale: 1, bakeSky: false, triplanar: true, lite: false, shadowCasters: 'all', viewFar: 2100, drsMin: 0.7 },
+  high:   { id: 'high', name: 'HIGH', pixelRatio: 1, maxDpr: 2, shadows: true, shadowSize: 2048, antialias: true, treeDensity: 1.0, people: 1,
+            treeHighR: 130, treeLowR: 130, cullScale: 1, bakeSky: false, triplanar: true, lite: false, shadowCasters: 'all', viewFar: 3600, drsMin: 0.75 },
 };
+// Phones: same names in the menu, but tuned for smooth 60 fps (cheaper shaders, baked sky, opaque mid-distance trees,
+// only riders/vehicles cast shadows, lower pixel ratio). Dynamic resolution keeps the frame rate up on top of this.
+const PHONE = {
+  low:    { maxDpr: 1, pixelRatio: 0.8, treeDensity: 0.32, treeLowR: 50, cullScale: 0.5, viewFar: 1200, drsMin: 0.5 },
+  medium: { maxDpr: 1.25, shadowCasters: 'dynamic', treeDensity: 0.5, treeHighR: 26, treeLowR: 70, cullScale: 0.7, bakeSky: true, triplanar: false, lite: true, viewFar: 1700, drsMin: 0.55 },
+  high:   { maxDpr: 1.5, shadowSize: 1024, antialias: false, shadowCasters: 'dynamic', treeDensity: 0.75, treeHighR: 45, treeLowR: 100, cullScale: 0.85, bakeSky: true, triplanar: true, viewFar: 2300, drsMin: 0.6 },
+};
+export function resolveQuality(id, phone) {
+  const base = QUALITY[id] || QUALITY.medium;
+  return phone ? { ...base, ...PHONE[base.id], phone: true } : { ...base, phone: false };
+}
 
-const isMobileUA = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+const isMobileUA = typeof navigator !== 'undefined' && (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+  || ((('ontouchstart' in globalThis) || navigator.maxTouchPoints > 0) && typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 900));
 
 export const DEFAULT_SETTINGS = {
   quality: isMobileUA ? 'medium' : 'high',

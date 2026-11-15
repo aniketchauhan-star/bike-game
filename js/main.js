@@ -1,6 +1,6 @@
 // UTTARAKHAND RIDERS — app entry: loading → tap (fullscreen) → lobby → race → results. Multiplayer via net.js.
 import * as THREE from 'three';
-import { Settings, QUALITY, CHARACTERS, charById, MODES } from './config.js';
+import { Settings, QUALITY, resolveQuality, CHARACTERS, charById, MODES } from './config.js';
 import { loadingManager, isTouch, isMobile } from './core/util.js';
 import { UI } from './ui/ui.js';
 import { Input } from './game/input.js';
@@ -19,7 +19,7 @@ const app = {
 window.__app = app;
 
 // ------------------------------------------------------------------ renderer + layout
-const quality = QUALITY[S.quality] || QUALITY.medium;
+const quality = resolveQuality(S.quality, isMobile() || (isTouch() && Math.min(screen.width, screen.height) < 900));
 app.quality = quality;
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: quality.antialias, powerPreference: 'high-performance', stencil: false });
@@ -31,7 +31,36 @@ app.renderer = renderer;
 const camera = new THREE.PerspectiveCamera(64, 16 / 9, 0.3, 4000);
 app.camera = camera;
 const gameEl = document.getElementById('game');
+// ---- behave like a real game, not a web page: no selection / copy / context menu / long-press menu / zoom
+{
+  const field = (t) => !!t?.closest?.('input, textarea, select');
+  for (const ev of ['contextmenu', 'selectstart', 'copy', 'cut', 'dragstart', 'drop']) document.addEventListener(ev, (e) => { if (!field(e.target)) e.preventDefault(); }, true);
+  for (const ev of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 || !e.target?.closest?.('#panel')) e.preventDefault(); }, { passive: false });
+  document.addEventListener('wheel', (e) => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && !field(e.target) && ['s', 'p', 'u', 'a', 'c', 'x', 'f', 'g', '+', '-', '=', '0'].includes((e.key || '').toLowerCase())) e.preventDefault();
+  }, true);
+}
 const touch = isTouch();
+
+// dynamic resolution: if the GPU can't hold the target frame rate, render fewer pixels (UI text stays sharp)
+const drs = { scale: 1, min: quality.drsMin ?? 0.6, sum: 0, n: 0, good: 0, refresh: 60, rafs: [] };
+function drsSample(ms) {
+  if (ms > 250 || app.state === 'loading') { drs.sum = 0; drs.n = 0; return; }
+  drs.sum += ms; drs.n++;
+  if (drs.n < 40) return;
+  const avg = drs.sum / drs.n; drs.sum = 0; drs.n = 0;
+  const target = 1000 / Math.min(S.fpsLimit || drs.refresh, drs.refresh);
+  let next = drs.scale;
+  if (avg > target * 1.15) { next = Math.max(drs.min, drs.scale * Math.max(0.8, Math.sqrt(target / avg))); drs.good = 0; }
+  else if (avg < target * 1.05) { if (++drs.good >= 3) { next = Math.min(1, drs.scale + 0.05); drs.good = 0; } }
+  else drs.good = 0;
+  next = Math.round(next * 20) / 20;
+  if (Math.abs(next - drs.scale) >= 0.049) { drs.scale = next; layout(); }
+}
+app.drs = drs;
 
 function layout() {
   const W = innerWidth, H = innerHeight;
@@ -39,7 +68,7 @@ function layout() {
   if (S.aspect !== 'fill') { if (W / H > 16 / 9) { h = H; w = Math.round(H * 16 / 9); } else { w = W; h = Math.round(W * 9 / 16); } }
   gameEl.style.width = w + 'px'; gameEl.style.height = h + 'px';
   gameEl.style.fontSize = (Math.min(w, h * 16 / 9) / 100) + 'px';
-  const dpr = Math.min(devicePixelRatio || 1, quality.maxDpr) * quality.pixelRatio;
+  const dpr = Math.min(devicePixelRatio || 1, quality.maxDpr) * quality.pixelRatio * drs.scale;
   renderer.setPixelRatio(dpr); renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.updateProjectionMatrix();
   app.lobby?.resize(w, h);
@@ -88,7 +117,7 @@ async function boot() {
   setCharacter(app.charIndex, 0, true);
   ui.setLobbyInfo(S);
   app.state = 'tap';
-  ui.showTap(onTap);
+  ui.showTap(onTap); app.updFsHint?.();
 }
 
 if (new URLSearchParams(location.search).get('titleshot') === '1') document.body.classList.add('titleshot');
@@ -100,7 +129,7 @@ async function onTap() {
   applyVolumes();
   Voice.init(Audio.context, Audio.voiceOut);
   Samples.init(Audio.context, Audio.voiceOut);
-  Voice.onDuck = (on) => { Audio.duckMusic(on); MusicPlayer.setDuck(on); };
+  Voice.onDuck = (on) => { Audio.duckMusic(on); MusicPlayer.setDuck(on); if (app.busMusic) app.busMusic.duck = on ? 0.3 : 1; };
   MusicPlayer.attach();
   MusicPlayer.setVolume(S.music);
   MusicPlayer.setScene('menu');
@@ -112,19 +141,51 @@ async function onTap() {
   setTimeout(() => Voice.playIntro(CHARACTERS[app.charIndex].id), 900);
 }
 
+// ------------------------------------------------------------------ full screen
+// Browsers only allow full screen inside a user gesture, so: the very FIRST tap / click / key anywhere
+// (even while loading) switches to full screen + landscape. Installed as an app (manifest display: fullscreen)
+// the game opens full screen straight from its home-screen icon.
+const fsSupported = !!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen);
+const isFs = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+const isInstalled = () => matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 function goFullscreen() {
-  const el = document.documentElement;
-  try {
-    const req = el.requestFullscreen || el.webkitRequestFullscreen;
-    if (req && !document.fullscreenElement) { const r = req.call(el, { navigationUI: 'hide' }); if (r && r.then) r.then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {}); }
-  } catch { /* iOS Safari: not supported */ }
+  if (isFs() || !fsSupported) return;
+  const el = document.documentElement; const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  const lock = () => { try { screen.orientation?.lock?.('landscape')?.catch?.(() => {}); } catch { /* */ } };
+  try { const r = req.call(el, { navigationUI: 'hide' }); if (r && r.then) r.then(lock).catch(() => {}); else lock(); } catch { /* */ }
 }
-app.toggleFullscreen = () => { if (document.fullscreenElement) document.exitFullscreen?.(); else goFullscreen(); };
+app.toggleFullscreen = () => { if (isFs()) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); else goFullscreen(); };
+{
+  const evs = ['pointerup', 'touchend', 'mousedown', 'keydown', 'click'];
+  const onGesture = (e) => {
+    if (e.type === 'keydown' && e.key === 'Escape') return;
+    if (e.target?.closest?.('[data-act="fullscreen"]')) return; // the ⛶ button toggles on its own
+    goFullscreen();
+    if (!touch) evs.forEach(t => document.removeEventListener(t, onGesture, true)); // desktop: only the first time
+  };
+  evs.forEach(t => document.addEventListener(t, onGesture, true));       // phones: every tap re-enters if you swiped out
+  const hint = document.getElementById('fs-hint');
+  const iOS = /iPhone|iPod/.test(navigator.userAgent) && !fsSupported;
+  const updHint = () => {
+    const show = !isFs() && !isInstalled() && (fsSupported || iOS) && (app.state === 'loading' || app.state === 'tap');
+    hint.classList.toggle('hidden', !show);
+    if (iOS) hint.innerHTML = '📲 iPhone: Share ⬆️ → <b>Add to Home Screen</b> = Full Screen';
+  };
+  document.addEventListener('fullscreenchange', updHint); document.addEventListener('webkitfullscreenchange', updHint);
+  app.updFsHint = updHint; updHint();
+  // "install app" (Android / desktop Chrome): the installed icon opens directly in full screen
+  const ib = document.getElementById('install-btn'); let deferred = null;
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; if (!isInstalled()) ib.classList.remove('hidden'); });
+  addEventListener('appinstalled', () => { ib.classList.add('hidden'); deferred = null; ui.toast('📲 App install ho gaya — ab icon se kholo, seedha full screen!'); });
+  ib.addEventListener('click', async (e) => { e.stopPropagation(); if (!deferred) return; deferred.prompt(); try { await deferred.userChoice; } catch { /* */ } deferred = null; ib.classList.add('hidden'); });
+  if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('sw.js').catch(() => {});
+}
 app.vibrate = (ms) => { if (S.vibrate && navigator.vibrate) try { navigator.vibrate(ms); } catch { /* */ } };
 
 // ------------------------------------------------------------------ lobby
 function enterLobby() {
   app.state = 'lobby'; app.paused = false;
+  document.getElementById('fs-hint')?.classList.add('hidden'); document.getElementById('install-btn')?.classList.add('hidden');
   app.lobby?.showSetups();
   ui.show('lobby'); ui.overlay('pause', false);
   app.input.enabled = false;
@@ -224,7 +285,7 @@ app.startSingle = () => {
   Audio.ui('select');
   startRace({ mode, difficulty: S.difficulty, timeOfDay: S.timeOfDay, entrants, lines });
 };
-app.onRaceStart = () => { gameEl.classList.remove('intro-mode'); ui.toast('🏁 GO GO GO! Ranikhet tak race!'); };
+app.onRaceStart = () => { gameEl.classList.remove('intro-mode'); };
 app.onRaceResults = (res) => {
   app.state = 'results'; ui.results(res); ui.overlay('results', true);
   MusicPlayer.setScene('results');
@@ -233,10 +294,10 @@ app.onRaceResults = (res) => {
 app.pause = () => {
   if (app.state !== 'race') return;
   app.state = 'paused'; app.paused = true; ui.overlay('pause', true);
-  if (!app.mp?.inRoom) Audio.pauseAll(true);
+  if (!app.mp?.inRoom) { Audio.pauseAll(true); app.busMusic?.pause(true); }
   document.querySelector('[data-act="restart"]').classList.toggle('hidden', !!app.mp?.inRoom);
 };
-app.resume = () => { if (app.state !== 'paused') return; app.state = 'race'; app.paused = false; ui.overlay('pause', false); ui.closePanel(); Audio.pauseAll(false); clock.reset(); };
+app.resume = () => { if (app.state !== 'paused') return; app.state = 'race'; app.paused = false; ui.overlay('pause', false); ui.closePanel(); Audio.pauseAll(false); app.busMusic?.pause(false); clock.reset(); };
 app.restart = () => { ui.overlay('pause', false); Audio.pauseAll(false); if (lastRaceOpts && !app.mp?.inRoom) { const o = { ...lastRaceOpts, goAt: null }; startRace(o); } };
 app.quitToLobby = () => {
   ui.overlay('pause', false); ui.overlay('results', false); ui.overlay('intro', false); Audio.pauseAll(false); Voice.stop();
@@ -263,6 +324,12 @@ app.mpJoin = async (code, name) => {
 };
 app.mpPick = (c) => { app.mp?.pick(c); const i = CHARACTERS.findIndex(x => x.id === c); if (i >= 0 && i !== app.charIndex) setCharacter(i, 1); };
 app.mpCpu = (on) => app.mp?.setCpu(on);
+app.mpSize = (n) => app.mp?.setSize(n);
+app.shareLink = async (url, code) => {
+  const text = `Uttarakhand Riders me race karo! Room code: ${code}`;
+  try { if (navigator.share) { await navigator.share({ title: 'Uttarakhand Riders', text, url }); return; } } catch { /* cancelled */ }
+  try { await navigator.clipboard.writeText(url); ui.toast('🔗 Link copy ho gaya — doston ko bhejo'); } catch { ui.toast('Room code: ' + code); }
+};
 app.mpLeave = () => { app.voice?.disable(); app.voice = null; app.mp?.leave(); app.mp = null; };
 app.voiceMic = async () => { if (!app.voice) return ui.toast('Voice chat multiplayer room me hi chalta hai'); const on = await app.voice.setMic(!app.voice.micOn); ui.toast(on ? '🎤 Mic ON — ab dost sun sakte hain' : '🎤 Mic OFF'); };
 app.voiceSpeaker = () => { if (!app.voice) return; app.voice.setSpeaker(!app.voice.speakerOn); ui.toast(app.voice.speakerOn ? '🔊 Doston ki awaaz ON' : '🔇 Doston ki awaaz OFF'); };
@@ -283,7 +350,7 @@ app.mpStart = () => {
   const mp = app.mp; if (!mp?.isHost) return;
   const lines = {}; for (const c of CHARACTERS) lines[c.id] = Voice.introLine(c.id);
   // intro length = 2.8 + Σ face shots + 1.3 ; GO = now + intro + 3.02 s countdown + 1 s network slack
-  const ents = mp.room.players.length + (mp.room.cpuFill ? CHARACTERS.length - mp.room.players.length : 0);
+  const ents = mp.raceSize();
   let intro = 2.8 + 1.3; for (const c of CHARACTERS.slice(0, ents)) intro += Math.max(2.1, Voice.duration(lines[c.id]) + 0.75);
   const goHost = performance.now() + (intro + 3.02 + 1.0) * 1000;
   const msg = mp.startRace({ mode: 'race', difficulty: S.difficulty, timeOfDay: S.timeOfDay, lines, goHost });
@@ -318,12 +385,20 @@ function updateTitle(dt) {
 const clock = { last: performance.now(), acc: 0, reset() { this.last = performance.now(); } };
 const DEV_TS = Math.max(1, Math.min(8, +(new URLSearchParams(location.search).get('ts') || 1)));
 let frames = 0, fpsT = performance.now(), fpsVal = 0;
+const pace = { lastRaf: performance.now(), acc: 0 };
 function frame(now) {
   requestAnimationFrame(frame);
+  const rafDt = now - pace.lastRaf; pace.lastRaf = now;
+  if (drs.rafs.length < 90 && rafDt > 4 && rafDt < 40) { drs.rafs.push(rafDt); if (drs.rafs.length === 90) { const s = [...drs.rafs].sort((a, b) => a - b); drs.refresh = Math.round(1000 / s[45]); } }
   const limit = S.fpsLimit || 0;
+  if (limit && limit < drs.refresh - 3) {
+    pace.acc += rafDt; const interval = 1000 / limit;
+    if (pace.acc < interval - 2) return;
+    pace.acc = Math.min(Math.max(0, pace.acc - interval), interval * 0.5);
+  }
   const elapsed = now - clock.last;
-  if (limit && elapsed < 1000 / limit - 1.5) return;
   clock.last = now;
+  drsSample(elapsed);
   const dt = Math.min(0.05, Math.max(0.001, elapsed / 1000));
   frames++; if (now - fpsT > 1000) { fpsVal = Math.round(frames * 1000 / (now - fpsT)); frames = 0; fpsT = now; ui.fps(fpsVal, S.showFps && app.state !== 'loading'); }
   try {

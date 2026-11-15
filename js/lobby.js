@@ -28,7 +28,13 @@ export class Lobby {
     // env map from sky
     const pm = new THREE.PMREMGenerator(this.renderer); const es = new THREE.Scene(); const s2 = new Sky(); s2.scale.setScalar(50); Object.assign(s2.material.uniforms.sunPosition.value, sun);
     for (const k of ['turbidity', 'rayleigh', 'mieCoefficient', 'mieDirectionalG']) s2.material.uniforms[k].value = u[k].value;
-    es.add(s2); S.environment = pm.fromScene(es, 0.03, 0.1, 200).texture; S.environmentIntensity = 0.9;
+    es.add(s2);
+    if (/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)) { // phones: baked sky background
+      const rt = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+      new THREE.CubeCamera(0.1, 1000, rt).update(this.renderer, es);
+      S.background = rt.texture; sky.visible = false;
+    }
+    S.environment = pm.fromScene(es, 0.03, 0.1, 200).texture; S.environmentIntensity = 0.9;
     // lights
     const key = new THREE.DirectionalLight(0xffd4a3, 2.6); key.position.set(-4, 6, 6); key.castShadow = true;
     key.shadow.mapSize.set(1024, 1024); Object.assign(key.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6, near: 0.5, far: 30 }); key.shadow.bias = -0.0005; key.shadow.normalBias = 0.03;

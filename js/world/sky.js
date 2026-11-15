@@ -116,6 +116,7 @@ export class Atmosphere {
       u.mieCoefficient.value = p.mie; u.mieDirectionalG.value = p.mieG;
       if (u.cloudCoverage) { u.cloudCoverage.value = p.clouds; u.cloudDensity.value = 0.45; u.cloudElevation.value = 0.55; u.cloudScale.value = 0.00022; u.cloudSpeed.value = 0.000012; }
     }
+    if (this.quality.bakeSky) this.bakeSky();
     this.envSky.material.uniforms.cloudCoverage && (this.envSky.material.uniforms.cloudCoverage.value = p.clouds * 0.6);
     this.renderer.toneMappingExposure = p.exposure;
     // lights
@@ -170,6 +171,17 @@ export class Atmosphere {
       L.position.set(fx + this.sunDir.x * D, focus.y + Math.max(0.25, this.sunDir.y) * D, fz + this.sunDir.z * D);
       L.target.updateMatrixWorld();
     }
+  }
+
+  /** render the sky once into a cube texture and use it as the background (phones) */
+  bakeSky() {
+    if (!this.skyRT) {
+      this.skyRT = new THREE.WebGLCubeRenderTarget(512, { type: THREE.HalfFloatType, generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+      this.skyCam = new THREE.CubeCamera(0.1, 1000, this.skyRT);
+    }
+    this.skyCam.update(this.renderer, this.envScene);
+    this.bgScene.background = this.skyRT.texture;
+    this.sky.visible = false;
   }
 
   renderBackground(renderer) {

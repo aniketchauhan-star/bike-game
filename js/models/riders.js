@@ -40,7 +40,7 @@ const RSPEC = {
   tushar: {
     H: 1.78, build: 0.94, headScale: 1.0, jacket: true, hair: 'swept',
     skin: '#956a58', lip: '#6e3e3a', iris: '#33200f', stubble: 0.0, moustache: 0.0,
-    face: { rx: 0.0712, len: 0.99, jaw: 1.14, cheek: 0.94, cheekFull: 0.1, noseW: 1.15, alarW: 0.0190, noseL: 1.06, noseH: 1.0, noseTip: 1.15, lipU: 0.82, lipL: 0.98, mouthW: 1.0, mouthOff: -0.0035, smile: 0.12, brow: 0.76, browArch: 0.8, browY: 0.0195, eyeR: 0.0117, eyeX: 0.0320, eyeH: 0.86, hood: 1.15, chin: 1.12 },
+    face: { rx: 0.0712, len: 0.99, jaw: 1.14, cheek: 0.94, cheekFull: 0.1, noseW: 1.15, alarW: 0.0190, noseL: 1.06, noseH: 1.0, noseTip: 1.15, lipU: 0.82, lipL: 0.98, mouthW: 1.0, mouthOff: -0.0035, smile: 0.12, brow: 0.76, browArch: 0.8, browY: 0.0195, eyeR: 0.0117, eyeX: 0.0320, eyeH: 0.95, hood: 1.1, chin: 1.12 },
     c: {
       body: '#c21f2b', sleeve: '#c21f2b', collar: '#151517', armor: '#16171a', pipe: '#f2f2f2',
       panel: '#f2f2f2', side: '#18181a',
@@ -303,7 +303,7 @@ function faceTextures(id) {
   { const g = ctx.createLinearGradient(0, Vy(0.06), 0, Vy(0.09)); g.addColorStop(0, 'rgba(18,12,10,0)'); g.addColorStop(1, 'rgba(18,12,10,0.55)'); ctx.fillStyle = g; ctx.fillRect(0, Vy(0.11), S, Vy(0.06) - Vy(0.11)); }
   // ear atlas region (u,v in [0,0.1])
   ctx.save(); ctx.fillStyle = skinAlbedo(sp.skin); ctx.fillRect(0, S - 110, 110, 110);
-  ctx.fillStyle = 'rgba(150,55,45,0.18)'; ctx.fillRect(0, S - 110, 110, 110);
+  ctx.fillStyle = 'rgba(120,45,38,0.07)'; ctx.fillRect(0, S - 110, 110, 110);
   const eu = (lx) => (0.005 + (lx + 0.005) * 2.2) * S, ev = (ly) => (1 - (0.005 + (ly + 0.04) * 1.2)) * S;
   const cg = ctx.createRadialGradient(eu(0.012), ev(-0.004), 1, eu(0.012), ev(-0.004), 20);
   cg.addColorStop(0, 'rgba(25,10,8,0.85)'); cg.addColorStop(1, 'rgba(25,10,8,0)'); ctx.fillStyle = cg; ctx.fillRect(0, S - 110, 110, 110);
@@ -617,7 +617,7 @@ function eyeballGeometry(r) {
 const HAIR_STYLES = {
   // Mayank — thick wavy hair, puffed up and out (wider than the head at the temples), low-ish straight hairline
   puffy: {
-    b: [0.43, 0.25, 0.05, -0.32, -0.55], count: 96, len: [0.05, 0.078], width: [0.026, 0.036], wave: 0.007, clump: 0.007,
+    b: [0.43, 0.25, 0.05, -0.32, -0.55], count: 96, len: [0.05, 0.078], width: [0.026, 0.036], wave: 0.007, clump: 0.007, jag: 0.008, fade: 0.3,
     shell: (dx, dy, dz) => 0.008 + 0.017 * smoothstep(0.05, 0.9, dy) + 0.032 * smoothstep(-0.05, 0.3, dy) * smoothstep(0.98, 0.5, dy) * Math.abs(dx) + 0.011 * Math.max(dz, 0) * smoothstep(0.3, 0.8, dy),
     flow: (d, s, front) => { if (front && s < 0.4) return V(0.25 * d.x, 1, -0.2).normalize();
       const top = smoothstep(0.35, 0.72, d.y), back = smoothstep(0.1, -0.55, d.z);
@@ -639,7 +639,7 @@ const HAIR_STYLES = {
   },
   // Himanshu — rounded bowl with a straight fringe down to the brows, sides covering the temples
   fringe: {
-    b: [0.215, 0.17, 0.07, -0.24, -0.50], count: 92, len: [0.08, 0.12], width: [0.024, 0.032], wave: 0.0006, clump: 0.002, taper: 0.55, protrude: 0.0010, jag: 0.004, flat: 0.28,
+    b: [0.215, 0.17, 0.07, -0.24, -0.50], count: 96, len: [0.08, 0.12], width: [0.03, 0.04], wave: 0.0006, clump: 0.002, taper: 0.3, protrude: 0.0008, jag: 0.004, flat: 0.26,
     edge: (dx, dy, dz) => 0.5 * smoothstep(0.3, 0.9, dz),
     shell: (dx, dy, dz) => 0.007 + 0.010 * smoothstep(0.2, 1.0, dy) + 0.016 * Math.abs(dx) * smoothstep(-0.2, 0.4, dy) * smoothstep(1.0, 0.5, dy) + 0.006 * Math.max(dz, 0) * (1 - smoothstep(0.2, 0.6, dy)),
     flow: (d) => { const out = d.clone().sub(V(0, 0.82, -0.57)); out.y -= 0.35; out.normalize(); const fr = smoothstep(0.15, 0.55, d.z) * smoothstep(0.35, 0.75, d.y + 0.2);
@@ -665,7 +665,7 @@ function buildHairGeometry(id) {
     return [V(x + nx * h, y + ny * h, z + nz * h), V(nx, ny, nz)];
   };
   const shellH = (dx, dy, dz) => {
-    const bnd = hairBoundary(style, dx, dz); const fade = smoothstep(bnd, bnd + 0.16, dy);
+    const bnd = hairBoundary(style, dx, dz); const fade = smoothstep(bnd, bnd + (style.fade ?? 0.16), dy);
     const clump = style.clump * (Math.sin(9 * dx + 1.7) * Math.sin(7 * dy + 0.6) * Math.sin(8 * dz + 2.1) + 0.5 * Math.sin(23 * dx + 0.3) * Math.sin(19 * dz + 1.1) * smoothstep(0.2, 0.9, dy));
     const f = style.edge ? lerp(style.edge(dx, dy, dz), 1, fade) : fade;
     return 0.0016 + (style.shell(dx, dy, dz) + clump) * f;
@@ -734,7 +734,7 @@ function buildHairGeometry(id) {
       const T = (k < NSEG ? pts[k + 1].clone().sub(p) : p.clone().sub(pts[k - 1])).normalize();
       const B = new THREE.Vector3().crossVectors(T, n).normalize();
       const N2 = new THREE.Vector3().crossVectors(B, T).normalize();
-      const wv = style.wave * Math.sin(2 * Math.PI * 1.2 * s + seed * 6.28) * s;
+      const wv = style.wave * Math.sin(2 * Math.PI * 1.2 * s + seed * 6.28) * s * smoothstep(0.25, 0.6, root.y);
       const c = p.clone().addScaledVector(B, wv);
       const wdt = w0 * (1 - (style.taper ?? 0.86) * Math.pow(s, 1.35)), th = wdt * (style.flat ?? 0.42);
       for (let j = 0; j < NR; j++) {
@@ -884,7 +884,7 @@ function clothGLSLFor(id, sp, s, w, J) {
   vec3 armorPattern(vec3 p){ float rib = step(0.55, fract(p.y * 95.0 + p.z * 30.0)); return ${glc(C.armor)} * (0.82 + 0.25 * rib); }`;
 }
 function riderBodyMaterial(skinColor, id, clothGLSL) {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, normalMap: fabricNormal(), normalScale: new THREE.Vector2(0.3, 0.3) });
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, normalMap: fabricNormal(), normalScale: new THREE.Vector2(0.3, 0.3), envMapIntensity: 0.5 });
   const uSkin = { value: skinColor.clone() };
   m.userData.uSkin = uSkin;
   m.onBeforeCompile = (sh) => {
@@ -1209,17 +1209,17 @@ export function createRider(id = 'mayank') {
   const headGroup = new THREE.Group(); headGroup.name = 'headGroup'; headGroup.position.copy(headOff); headGroup.scale.setScalar(hs);
   bones.head.add(headGroup);
   const HG = buildHeadGeometry(id); const FT = faceTextures(id);
-  const faceMat = new THREE.MeshStandardMaterial({ map: FT.map, roughnessMap: FT.rough, roughness: 1.0, metalness: 0, envMapIntensity: 0.34 });
+  const faceMat = new THREE.MeshStandardMaterial({ map: FT.map, roughnessMap: FT.rough, roughness: 1.0, metalness: 0, envMapIntensity: 0.18 });
   const headMesh = new THREE.Mesh(HG.headGeo, faceMat); headMesh.name = 'headMesh'; headMesh.castShadow = true; headMesh.receiveShadow = true;
   headMesh.morphTargetInfluences = [0, 0];
   headGroup.add(headMesh);
-  const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTexture(sp.iris), roughness: 0.35, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, envMapIntensity: 0.45 });
+  const eyeMat = new THREE.MeshPhysicalMaterial({ map: eyeTexture(sp.iris), roughness: 0.4, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.06, envMapIntensity: 0.16 });
   const eyeGeo = eyeballGeometry(HG.eyeR);
   const eyes = HG.eyeC.map((c, i) => { const m = new THREE.Mesh(eyeGeo, eyeMat); m.position.copy(c); m.name = i ? 'eyeR' : 'eyeL'; headGroup.add(m); return m; });
-  const browMat = new THREE.MeshStandardMaterial({ map: browTexture(), color: 0xffffff, alphaTest: 0.32, side: THREE.DoubleSide, roughness: 0.78, metalness: 0 });
+  const browMat = new THREE.MeshStandardMaterial({ map: browTexture(), color: 0xffffff, alphaTest: 0.32, side: THREE.DoubleSide, roughness: 0.82, metalness: 0, envMapIntensity: 0.2 });
   const browMesh = new THREE.Mesh(HG.browGeo, browMat); browMesh.name = 'brows'; browMesh.morphTargetInfluences = [0];
   headGroup.add(browMesh);
-  const hairMat = new THREE.MeshPhysicalMaterial({ map: hairAtlas(), color: 0x8f8984, side: THREE.DoubleSide, roughness: 0.62, metalness: 0, sheen: 0.22, sheenColor: new THREE.Color(0x231c17), sheenRoughness: 0.5, envMapIntensity: 0.32 });
+  const hairMat = new THREE.MeshPhysicalMaterial({ map: hairAtlas(), color: 0x75706c, side: THREE.DoubleSide, roughness: 0.66, metalness: 0, sheen: 0.12, sheenColor: new THREE.Color(0x231c17), sheenRoughness: 0.55, envMapIntensity: 0.12 });
   const hairMesh = new THREE.Mesh(buildHairGeometry(id), hairMat); hairMesh.name = 'hair'; hairMesh.castShadow = true;
   headGroup.add(hairMesh);
   const helmet = createHelmet(id); helmet.position.copy(headOff).add(V(0, -HELMET_CENTER, 0)); helmet.visible = false;

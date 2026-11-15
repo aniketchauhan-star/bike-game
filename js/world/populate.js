@@ -54,7 +54,7 @@ export class Populator {
     if (!anim) { g.updateMatrixWorld(true); g.matrixAutoUpdate = false; g.traverse(o => { o.matrixAutoUpdate = false; }); this.staticRoots.push(g); }
     this.scene.add(g);
     if (anim && obj.update) this.animated.push({ obj, pos: g.position, near });
-    if (anim) this.cull.push({ o: g, r: Math.max(near * 1.6, 180) });
+    if (anim) this.cull.push({ o: g, r: Math.max(near * 1.6, 180) * (this.q.cullScale || 1) });
     if (reserve) this.reserved.push({ x: p.x, z: p.z, r: reserve });
     return obj;
   }
@@ -98,7 +98,7 @@ export class Populator {
     // parked buses in the bay
     for (let k = 0; k < 2; k++) {
       const s = bsS - 10 + k * 14; const bus = tryCall(createBus, { seed: 11 + k });
-      this.place(bus, this.pos(s, T.halfWidth(s) + 6.2), this.yawAlong(s, k === 1), { reserve: 7 });
+      if (this.place(bus, this.pos(s, T.halfWidth(s) + 6.2), this.yawAlong(s, k === 1), { reserve: 7 })) (this.special.parkedBuses ||= []).push(bus.group);
     }
     // people waiting at the bus stand
     for (let k = 0; k < 11; k++) {
@@ -396,7 +396,7 @@ export class Populator {
     // whatever could not be merged (unique sign materials, instanced wheels…) is distance-culled per root
     for (const root of this.staticRoots) {
       let has = false; root.traverse(o => { if (o.isMesh) has = true; });
-      if (has) { const bs = new THREE.Box3().setFromObject(root); const size = bs.getSize(pos).length(); this.cull.push({ o: root, r: clamp(160 + size * 22, 220, 900) }); }
+      if (has) { const bs = new THREE.Box3().setFromObject(root); const size = bs.getSize(pos).length(); this.cull.push({ o: root, r: clamp(160 + size * 22, 220, 900) * (this.q.cullScale || 1) }); }
     }
     console.log(`[populate] batched ${merged} meshes into ${made}`);
   }

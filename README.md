@@ -17,6 +17,11 @@ Track: Ramnagar bus stand se shuru → Corbett Tiger Reserve ka jungle → Kosi 
 
 Game browser me khul jayega: `http://localhost:8080`
 
+### ⛶ Full screen
+- Browser (Chrome/Safari) bina tap ke full screen nahi karne dete — isliye link khulte hi **screen par kahin bhi pehla tap** karo (loading ke dauraan bhi), game turant full screen + landscape ho jayega.
+- **Bina tap ke seedha full screen chahiye?** Game ko app ki tarah install karo: title screen par **📲 APP INSTALL KARO** button (Android Chrome, https link par) ya Chrome menu → *Add to Home screen*. Phir home screen ke icon se kholo — game seedha full screen me khulega.
+- **iPhone:** Safari full screen support nahi karta — Share ⬆️ → **Add to Home Screen** karke icon se kholo.
+
 ### 📱 Phone par khelna
 1. Phone aur computer **ek hi Wi-Fi** par hon.
 2. Terminal me jo link dikhe (jaise `http://192.168.1.13:8080`) wo phone ke browser (Chrome) me kholo.
@@ -33,9 +38,15 @@ Game browser me khul jayega: `http://localhost:8080`
 1. Ek dost **MULTIPLAYER → CREATE ROOM** dabaye. 4-letter code aur QR code aayega.
 2. Baaki dost **JOIN** me code daalein, ya QR scan karein.
 3. Har koi apna rider chune (Mayank / Tushar / Himanshu). Khaali jagah par CPU rider bhi daal sakte ho.
-4. Host **START RACE** dabaye. Sabki race ek saath shuru hogi.
+4. Host **Race kitne ki?** me **2 RIDERS** ya **3 RIDERS** chune (khaali jagah CPU bharega), phir **START RACE** dabaye. Sabki race ek saath shuru hogi.
 
-**Alag-alag jagah ke dost (internet se):**
+**Website par (Vercel / Netlify) — alag-alag shehar, 4G/5G se bhi:**
+- Poora folder Vercel par deploy karo. Wahan `server.js` nahi chalta, isliye game apne aap **online relay** use karta hai (free public MQTT servers) — code daalo, join ho jaoge.
+- Room panel me 🌐 *Online room* likha aayega. **📤 SHARE** button se link WhatsApp par bhejo.
+- `.vercelignore` file private cheezein (asli photos, raw recordings, certificate) website par jaane se rokti hai — deploy karte waqt ye file saath rehni chahiye.
+- Note: public relay par room ke messages (naam, positions) encrypted nahi hote — sirf game data jaata hai.
+
+**Alag-alag jagah ke dost (apne computer se host karke):**
 - Aasaan tareeka: [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) install karo, game chalao, phir doosre Terminal me `cloudflared tunnel --url http://localhost:8080` chalao. Jo `https://....trycloudflare.com` link mile wo doston ko bhej do.
 - Ya poora folder kisi static hosting (Netlify Drop / GitHub Pages) par daal do. Server na milne par game apne aap **P2P mode** use karta hai (internet chahiye).
 
@@ -71,9 +82,14 @@ Game browser me khul jayega: `http://localhost:8080`
 
 ---
 
+## 📱 Phone par smooth
+- Phone par game apne aap halki graphics use karta hai (sasta aasmaan, door ke ped simple, sirf bikes ki parchhai) aur **dynamic resolution** — FPS girne lage to 3D thoda kam pixels me banta hai, text hamesha saaf rehta hai.
+- Phir bhi garam ho ya atke to Settings → Graphics **LOW** aur FPS Limit **30** karo.
+
 ## 🎵 Gaane aur awaazein
 - **Songs:** aapka "Pahadi Nonstop mashup" 15 alag gaano me kaata gaya hai (`assets/songs/`). Music apne aap nahi bajta. **♫** chip / **▶** dabao, **⏭** se agla gaana. Race ke beech me bhi badal sakte ho.
   - Gaano ke naam badalne ho to `assets/songs/songs.json` me `"title"` edit karo.
+- **Bus me gaane:** paas se guzarti buses (aur Ramnagar bus stand ki buses) me Pahadi gaane bajte hain — paas aate hi awaaz badhti hai, nikal jaane par dheere-dheere band.
 - **Riders ki awaaz:** `voice overs` folder ki recordings (`assets/voice/`). Intro me har rider "MAIN HOON …" ke saath bolta hai, lobby me rider badalne par, laat maarne par, aur 💬 button par.
 - **Game sounds:** countdown beeps, horn, whoosh, engine rev, jungle ke pakshi (`assets/sfx/`). Engine, hawa, jaanwar (sher, gaay, saanp, langur, haathi, mor), nadi, mandir ki ghanti aur background music code me synthesize hote hain.
 

@@ -220,22 +220,24 @@ export class UI {
     this.panel(`<h3>ROOM</h3>
       <div class="room-grid"><div>
         <div class="room-code">${r.code}</div>
-        <div class="link-box">${joinUrl || ''}</div>
+        <div class="link-row"><div class="link-box">${joinUrl || ''}</div><button class="btn-dark share-btn" id="mp-share">📤 SHARE</button></div>
         <div class="plist">${r.players.map(p => `<div class="pl"><div class="pbadge" style="background:${charById(p.char).accent}">${charById(p.char).name[0]}</div><span>${esc(p.name)} • ${charById(p.char).name}</span>${p.id === r.hostId ? '<span class="host">HOST</span>' : ''}</div>`).join('')}
-          ${r.cpuFill ? CHARACTERS.filter(c => !taken.has(c.id)).map(c => `<div class="pl cpu"><div class="pbadge" style="background:${c.accent}">${c.name[0]}</div><span>CPU • ${c.name}</span></div>`).join('') : ''}</div>
+          ${CHARACTERS.filter(c => !taken.has(c.id)).slice(0, mp.cpuCount()).map(c => `<div class="pl cpu"><div class="pbadge" style="background:${c.accent}">${c.name[0]}</div><span>CPU • ${c.name}</span></div>`).join('')}</div>
         <div class="set-h" style="margin-top:.2em">APNA RIDER</div>
         <div class="char-pick">${CHARACTERS.map(c => `<button data-pick="${c.id}" class="${me && me.char === c.id ? 'on' : ''}" ${taken.has(c.id) && !(me && me.char === c.id) ? 'disabled' : ''}>${c.name}</button>`).join('')}</div>
-        ${mp.isHost ? `<div class="set-row"><label>Khaali jagah par CPU</label><div class="seg"><button data-cpu="1" class="${r.cpuFill ? 'on' : ''}">ON</button><button data-cpu="0" class="${!r.cpuFill ? 'on' : ''}">OFF</button></div></div>
-        ${r.cpuFill ? `<div class="set-row"><label>CPU Level</label><div class="seg">${DIFFICULTIES.map(d => `<button data-rdiff="${d.id}" class="${app.settings.difficulty === d.id ? 'on' : ''}">${d.name}</button>`).join('')}</div></div>` : ''}` : ''}
+        ${mp.isHost ? `<div class="set-row"><label>Race kitne ki?<small>Khaali jagah CPU bharega</small></label><div class="seg">${[2, 3].map(n => `<button data-size="${n}" class="${mp.raceSize() === n ? 'on' : ''}" ${n < r.players.length ? 'disabled' : ''}>${n} RIDERS</button>`).join('')}</div></div>
+        ${mp.cpuCount() > 0 ? `<div class="set-row"><label>CPU Level</label><div class="seg">${DIFFICULTIES.map(d => `<button data-rdiff="${d.id}" class="${app.settings.difficulty === d.id ? 'on' : ''}">${d.name}</button>`).join('')}</div></div>` : ''}` : ''}
       </div><div><div class="qr" id="qr"></div><div class="mp-note">Dost ye QR scan karke seedha join kar sakte hain.</div>
         <div style="display:grid;gap:.6em;margin-top:.8em">
           ${mp.isHost ? `<button class="btn-yellow" id="mp-start">START RACE</button>` : `<span class="mp-note">Host race start karega...</span>`}
           <button class="btn-dark" id="mp-leave">LEAVE</button>
         </div>${this.voiceRoomHtml()}</div></div>
-      <div class="mp-note">${mp.transport === 'p2p' ? 'Mode: Internet P2P' : 'Mode: Local server'} • ${r.players.length}/3 riders</div>`);
+      <div class="mp-note">${mp.transport === 'relay' ? '🌐 Online room — alag-alag network/4G se bhi join ho sakte hain' : mp.transport === 'p2p' ? 'Mode: Internet P2P' : '📶 Local server (same Wi-Fi)'} • ${r.players.length} log room me • Race: ${mp.raceSize()} riders</div>`);
     if (joinUrl) app.drawQR?.($('#qr'), joinUrl);
     $$('#panel [data-pick]').forEach(b => b.onclick = () => app.mpPick(b.dataset.pick));
     $$('#panel [data-cpu]').forEach(b => b.onclick = () => app.mpCpu(b.dataset.cpu === '1'));
+    $$('#panel [data-size]').forEach(b => b.onclick = () => app.mpSize(+b.dataset.size));
+    const sh = document.getElementById('mp-share'); if (sh) sh.onclick = () => app.shareLink(joinUrl, r.code);
     $$('#panel [data-rdiff]').forEach(b => b.onclick = () => { app.setSetting('difficulty', b.dataset.rdiff); this.renderRoom(); });
     $('#mp-leave').onclick = () => { app.mpLeave(); this.closePanel(); };
     const st = $('#mp-start'); if (st) st.onclick = () => app.mpStart();
@@ -291,7 +293,7 @@ export class UI {
     const nst = (h.nitro >= 0.99 ? 'full' : '') + (h.boosting ? ' active' : '');
     if (c.nst !== nst) { c.nst = nst; const b = document.getElementById('nitro-btn'); if (b) { b.classList.toggle('full', h.nitro >= 0.99); b.classList.toggle('active', !!h.boosting); } document.getElementById('vignette')?.classList.toggle('boost', !!h.boosting); }
     const now = performance.now();
-    if (this.radar && (!this._rT || now - this._rT > 33)) {
+    if (this.radar && (!this._rT || now - this._rT > (this.app.quality?.phone ? 66 : 33))) {
       this._rT = now; const P = this.app.race?.player;
       if (P) this.radar.draw(document.getElementById('radar'), P, h.map, this.app.world.track.finishS);
     }

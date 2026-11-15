@@ -1,0 +1,11 @@
+# keep private / dev-only files off the public website
+.cert
+characters images
+characters images /
+voice overs
+voice overs /
+game sound
+dev
+server.js
+start-game.command
+start-game.bat

@@ -448,7 +448,7 @@ export class Racer {
   pushSnapshot(st, now) { if (!this.net) this.net = []; this.net.push({ t: now, ...st }); if (this.net.length > 12) this.net.shift(); }
   applyRemote(now) {
     const buf = this.net; if (!buf || !buf.length) return;
-    const rt = now - 110;
+    const rt = now - (this.netDelay || 120);
     let a = buf[0], b = buf[buf.length - 1];
     for (let i = 0; i < buf.length - 1; i++) if (buf[i].t <= rt && buf[i + 1].t >= rt) { a = buf[i]; b = buf[i + 1]; break; }
     let t = b.t > a.t ? clamp((rt - a.t) / (b.t - a.t), 0, 1) : 1;
@@ -458,6 +458,8 @@ export class Racer {
     this.yaw = a.h + wrapAngle(b.h - a.h) * t;
     this.v = lerp(a.v, b.v, t); this.lean = lerp(a.l, b.l, t);
     this.rpm = lerp(a.r, b.r, t); this.gear = b.g; this.throttle = b.th; this.brake = b.b; this.steer = b.st; this.wheelieA = b.w || 0;
+    // dead reckoning: show the remote rider close to where he really is now (not where he was netDelay ago)
+    if (!b.c) { const ex = (this.netDelay || 120) * 0.0007; this.x += Math.sin(this.yaw) * this.v * ex; this.z += Math.cos(this.yaw) * this.v * ex; }
     this.remoteCrash = !!b.c; this.finished = !!b.f;
     this.project();
   }

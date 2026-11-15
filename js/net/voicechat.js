@@ -1,7 +1,7 @@
 // Multiplayer voice chat: WebRTC audio mesh between the (max 3) human players in a room.
 // Signalling goes through the existing room transport (WebSocket relay or PeerJS). Everyone hears by default;
 // the mic is opt-in (🎤). Browsers only give microphone access on secure pages (https:// or localhost).
-const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+import { ICE } from './net.js';
 
 export class VoiceChat {
   constructor(mp, { onState } = {}) {

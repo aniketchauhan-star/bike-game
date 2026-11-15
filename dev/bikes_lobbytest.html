@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>lobby light test (dev)</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#000}</style>
+<script type="importmap">{ "imports": { "three": "../vendor/three/three.module.js", "three/addons/": "../vendor/three/addons/" } }</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import * as riders from '../js/models/riders.js';
+import * as bikes from '../js/models/bikes.js';
+import { Lobby } from '../js/lobby.js';
+const q = new URLSearchParams(location.search);
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setSize(innerWidth, innerHeight); renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.toneMappingExposure = +(q.get('exp') || 1);
+document.body.appendChild(renderer.domElement);
+await riders.preloadRiders();
+const lobby = new Lobby(renderer, { riders, bikes });
+lobby.resize(innerWidth, innerHeight);
+const idx = +(q.get('i') || 0);
+lobby.index = idx; lobby.showSetups();
+for (let i = 0; i < 90; i++) lobby.update(1 / 60);
+if (q.get('close')) {
+  const st = lobby.setups[idx]; const r = st.rider; const p = r.headAnchor.getWorldPosition(new THREE.Vector3());
+  const cam = lobby.camera; cam.fov = 25; cam.updateProjectionMatrix(); cam.position.set(p.x + (+(q.get('ox') || 0)), p.y, p.z + 0.6); cam.lookAt(p.x, p.y - 0.01, p.z);
+  r.setLookTarget(cam.position.clone()); r.update(1 / 60, 2, {});
+  renderer.render(lobby.scene, cam);
+} else lobby.render();
+window.__ready = true;
+</script></body></html>

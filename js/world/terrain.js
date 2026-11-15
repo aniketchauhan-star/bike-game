@@ -147,7 +147,7 @@ export class Terrain {
   // --------------------------------------------------------------- mesh generation
   async build(scene, quality, onProgress = () => {}) {
     const C = 128; // chunk size
-    const R = 512; // region size (merge + culling unit)
+    const R = quality.phone ? 1024 : 512; // region size (merge + culling unit)
     const nCx = (this.maxX - this.minX) / C, nCz = (this.maxZ - this.minZ) / C;
     const regions = new Map();
     const nearSegs = quality.id === 'high' ? 32 : quality.id === 'medium' ? 16 : 16;
@@ -285,7 +285,8 @@ export class Terrain {
       tGrass: { value: grassTexture(sz) }, tDirt: { value: dirtTexture(sz) }, tRock: { value: rockTexture(sz) },
       tFloor: { value: forestFloorTexture(sz) }, tMacro: { value: macroTexture() },
     };
-    const tri = quality.id !== 'low';
+    const tri = quality.triplanar ?? (quality.id !== 'low');
+    const lite = !!quality.lite;
     m.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, uniforms);
       sh.vertexShader = sh.vertexShader
@@ -297,9 +298,9 @@ export class Terrain {
           vec2 wxz = vWPos.xz;
           float macro = texture2D(tMacro, wxz * 0.0019).r;
           float macro2 = texture2D(tMacro, wxz * 0.011 + 0.37).r;
-          vec3 cg = mix(texture2D(tGrass, wxz * 0.13).rgb, texture2D(tGrass, wxz * 0.031).rgb, 0.35);
+          ${lite ? 'vec3 cg = texture2D(tGrass, wxz * 0.11).rgb;' : 'vec3 cg = mix(texture2D(tGrass, wxz * 0.13).rgb, texture2D(tGrass, wxz * 0.031).rgb, 0.35);'}
           vec3 cd = texture2D(tDirt, wxz * 0.15).rgb;
-          vec3 cf = mix(texture2D(tFloor, wxz * 0.11).rgb, texture2D(tFloor, wxz * 0.027).rgb, 0.3);
+          ${lite ? 'vec3 cf = texture2D(tFloor, wxz * 0.1).rgb;' : 'vec3 cf = mix(texture2D(tFloor, wxz * 0.11).rgb, texture2D(tFloor, wxz * 0.027).rgb, 0.3);'}
           ${tri ? `
           vec3 an = abs(normalize(vWNrm)); an = pow(an, vec3(3.0)); an /= (an.x + an.y + an.z);
           vec3 cr = texture2D(tRock, vWPos.zy * 0.075).rgb * an.x + texture2D(tRock, wxz * 0.075).rgb * an.y + texture2D(tRock, vWPos.xy * 0.075).rgb * an.z;`
@@ -313,7 +314,7 @@ export class Terrain {
           diffuseColor.rgb *= tcol * 1.5;
         `);
     };
-    m.customProgramCacheKey = () => 'terrain-' + (tri ? 'tri' : 'flat');
+    m.customProgramCacheKey = () => 'terrain-' + (tri ? 'tri' : 'flat') + (lite ? '-lite' : '');
     this._mat = m;
     return m;
   }

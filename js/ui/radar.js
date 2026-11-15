@@ -8,7 +8,7 @@ export class Radar {
     this.world = world; const T = world.track; const b = T.bounds; const M = 450;
     this.minX = b.minX - M; this.maxX = b.maxX + M; this.minZ = b.minZ - M; this.maxZ = b.maxZ + M;
     const wM = this.maxX - this.minX, hM = this.maxZ - this.minZ;
-    const maxPx = 2048; this.ppm = maxPx / Math.max(wM, hM); // pixels per metre on the map canvas
+    const maxPx = world.quality?.phone ? 1400 : 2048; this.ppm = maxPx / Math.max(wM, hM); // pixels per metre on the map canvas
     this.canvas = document.createElement('canvas'); this.canvas.width = Math.ceil(wM * this.ppm); this.canvas.height = Math.ceil(hM * this.ppm);
     this.render();
   }

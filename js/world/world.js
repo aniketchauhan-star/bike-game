@@ -21,7 +21,7 @@ export class World {
     this.scene.matrixWorldAutoUpdate = true;
     this.atmo = new Atmosphere(renderer, quality);
     this.atmo.attach(this.scene);
-    this.viewFar = VIEW_FAR[quality.id] || 2600;
+    this.viewFar = quality.viewFar || VIEW_FAR[quality.id] || 2600;
     this.atmo.setViewDistance(this.viewFar);
     this.updatables = [];
     this.time = 0;
@@ -92,6 +92,11 @@ export class World {
     for (const p of this.pop?.poleSpots || []) this.solids.add(p.x, p.z, p.r, 1e9, 'pole');
     this.fx = new FX(this.scene);
     lap('solids+fx');
+    if (this.quality.shadowCasters === 'dynamic' || this.quality.shadowCasters === 'none') {
+      // phones: static scenery receives shadows but does not cast (riders + traffic still do)
+      this.scene.traverse(o => { if (o.isMesh || o.isInstancedMesh) o.castShadow = false; });
+      if (this.quality.shadowCasters === 'dynamic') for (const tr of this.pop?.traffic || []) tr.g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    }
     this.setTimeOfDay(this.atmo.todId || 'evening'); lap('time of day/env');
     this.updatables.push((dt, t) => wf.userData.update?.(dt, t));
     onProgress(0.92);

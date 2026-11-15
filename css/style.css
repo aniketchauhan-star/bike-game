@@ -474,3 +474,56 @@ body.titleshot #scr-loading .load-center, body.titleshot #scr-loading .title-loa
 .room-grid .vc-room .vc-btns button { width: 100%; font-size: 1.4em; }
 .room-grid .vc-room .mp-note { font-size: .95em; }
 .is-touch .nitro-btn { right: 1.4em; bottom: 13.4em; width: 6.4em; height: 6.4em; }
+
+/* ===================== full screen hint + install button (title screen) ===================== */
+.fs-hint { position: absolute; left: 50%; top: 52%; transform: translateX(-50%); padding: .55em 1.4em .45em; background: rgba(5,8,16,.62); border: 1px solid rgba(255,255,255,.28); border-radius: 2em; font-size: 1.5em; font-weight: 700; letter-spacing: .03em; color: #fff; white-space: nowrap; text-shadow: 0 1px 4px #000; animation: fsPulse 1.6s ease-in-out infinite; pointer-events: none; }
+.fs-hint b { color: var(--yel); }
+@keyframes fsPulse { 50% { transform: translateX(-50%) scale(1.05); box-shadow: 0 0 1.4em rgba(255,198,26,.35); } }
+.install-btn { position: absolute; left: 2em; bottom: 2em; display: flex; flex-direction: column; align-items: flex-start; padding: .55em 1.1em .45em; background: rgba(5,8,16,.7); border: 1px solid rgba(255,255,255,.3); border-left: .3em solid var(--yel); font-family: 'Teko'; font-size: 1.9em; letter-spacing: .06em; line-height: 1; color: #fff; }
+.install-btn small { font-family: 'Rajdhani'; font-size: .55em; font-weight: 600; letter-spacing: .02em; color: #dfe5f1; margin-top: .2em; }
+.install-btn:active { transform: scale(.95); }
+
+/* ===================== feel like a game, not a web page ===================== */
+* { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+input, textarea { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+img { -webkit-user-drag: none; user-drag: none; pointer-events: none; }
+canvas { touch-action: none; outline: none; }
+
+/* ===================== phones: smooth (no live blur over the 3D canvas) ===================== */
+.is-touch #scr-hud *, .is-touch #scr-hud, .is-touch .icon-btn, .is-touch .tbtn, .is-touch .music-chip, .is-touch .card, .is-touch .char-card, .is-touch .nav-arrow { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+.is-touch { --glass: rgba(8, 12, 22, .74); }
+.is-touch .tbtn { background-color: rgba(10,16,28,.55); }
+
+/* ===================== phones: big, clean race text ===================== */
+.is-touch .radar-info b { font-size: 2.4em; }
+.is-touch .radar-info span { font-size: 1.75em; }
+.is-touch .hud-tr .pos b { font-size: 7.4em; }
+.is-touch .hud-tr .pos span { font-size: 3.2em; }
+.is-touch .hud-tr .timer { font-size: 3.3em; }
+.is-touch .hud-tr .music-chip { display: none; }
+.is-touch .hud-btns .icon-btn { width: 4.2em; height: 4.2em; font-size: 1.35em; }
+.is-touch #toasts { top: 1.5%; }
+.is-touch .toast { font-size: 2.2em; padding: .4em 1.1em .3em; max-width: 54em; white-space: normal; text-align: center; }
+.is-touch .zone-banner { top: 21%; }
+.is-touch .zone-banner b { font-size: 5.8em; }
+.is-touch .zone-banner small { font-size: 2.3em; }
+.is-touch .trick { font-size: 5.6em; top: 56%; }
+.is-touch .spd b { font-size: 7em; }
+.is-touch .spd span { font-size: 2em; }
+.is-touch .gear { font-size: 1.45em; }
+.is-touch .nitro span { display: none; }
+.is-touch .pedals .brake small { display: none; }
+.is-touch .pedals .wheelie { font-size: 1.7em; width: 3.1em; height: 3.1em; }
+.is-touch .warn { font-size: 6.2em; }
+.is-touch .offtrack b { font-size: 4.4em; }
+.is-touch .offtrack span { font-size: 2.2em; }
+.is-touch .vc-talk span { font-size: 1.8em; }
+.is-touch .takedown small { font-size: 3.6em; }
+.is-touch .finish-banner small { font-size: 4em; }
+.is-touch .fps { font-size: 1.6em; }
+.is-touch .countdown { font-size: 24em; }
+
+.link-row { display: flex; gap: .6em; align-items: stretch; margin-top: .4em; }
+.link-row .link-box { flex: 1; margin: 0; display: flex; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.share-btn { font-size: 1.5em; padding: .3em .9em .15em; clip-path: none; }
+.seg button:disabled { opacity: .35; }
