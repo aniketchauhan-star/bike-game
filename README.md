@@ -19,8 +19,10 @@ Game browser me khul jayega: `http://localhost:8080`
 
 ### ⛶ Full screen
 - Browser (Chrome/Safari) bina tap ke full screen nahi karne dete — isliye link khulte hi **screen par kahin bhi pehla tap** karo (loading ke dauraan bhi), game turant full screen + landscape ho jayega.
+- **START** dabate hi full screen (Chrome, Edge, Firefox, Safari Mac/iPad, Android).
+- Race ke beech swipe / back / app switch se full screen chala jaye to game apne aap **pause** ho jata hai — **RESUME** dabao, game wapas full screen me. Lobby me screen par **TAP KARO** dikhega.
 - **Bina tap ke seedha full screen chahiye?** Game ko app ki tarah install karo: title screen par **📲 APP INSTALL KARO** button (Android Chrome, https link par) ya Chrome menu → *Add to Home screen*. Phir home screen ke icon se kholo — game seedha full screen me khulega.
-- **iPhone:** Safari full screen support nahi karta — Share ⬆️ → **Add to Home Screen** karke icon se kholo.
+- **iPhone:** Apple ka Safari kisi bhi website ko full screen nahi karne deta — game pehli baar START par steps dikhata hai: Share ⬆️ → **Add to Home Screen** → icon se kholo (phir hamesha full screen).
 
 ### 📱 Phone par khelna
 1. Phone aur computer **ek hi Wi-Fi** par hon.

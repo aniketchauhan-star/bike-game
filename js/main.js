@@ -137,7 +137,11 @@ async function onTap() {
   MusicPlayer.emit();
   enterLobby();
   const room = new URLSearchParams(location.search).get('room');
-  setTimeout(() => ui.tutorial(false, () => { if (room) ui.openMultiplayer(); }), 500);
+  setTimeout(() => ui.tutorial(false, () => {
+    let shown = false; try { shown = sessionStorage.getItem('ukr.iosTip') === '1'; } catch { /* */ }
+    if (iosNeedsTip() && !shown) { try { sessionStorage.setItem('ukr.iosTip', '1'); } catch { /* */ } ui.iosFullscreenTip(() => { if (room) ui.openMultiplayer(); }); }
+    else if (room) ui.openMultiplayer();
+  }), 500);
   setTimeout(() => Voice.playIntro(CHARACTERS[app.charIndex].id), 900);
 }
 
@@ -152,9 +156,16 @@ function goFullscreen() {
   if (isFs() || !fsSupported) return;
   const el = document.documentElement; const req = el.requestFullscreen || el.webkitRequestFullscreen;
   const lock = () => { try { screen.orientation?.lock?.('landscape')?.catch?.(() => {}); } catch { /* */ } };
-  try { const r = req.call(el, { navigationUI: 'hide' }); if (r && r.then) r.then(lock).catch(() => {}); else lock(); } catch { /* */ }
+  try {
+    const r = el.requestFullscreen ? el.requestFullscreen({ navigationUI: 'hide' }) : el.webkitRequestFullscreen();
+    if (r && r.then) r.then(lock).catch(() => {}); else setTimeout(lock, 300);
+  } catch { /* */ }
 }
-app.toggleFullscreen = () => { if (isFs()) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); else goFullscreen(); };
+const iosNeedsTip = () => !fsSupported && /iPhone|iPod|iPad|Macintosh/.test(navigator.userAgent) && isTouch() && !isInstalled();
+app.toggleFullscreen = () => {
+  if (!fsSupported) { ui.iosFullscreenTip(); return; }
+  if (isFs()) (document.exitFullscreen || document.webkitExitFullscreen)?.call(document); else goFullscreen();
+};
 {
   const evs = ['pointerup', 'touchend', 'mousedown', 'keydown', 'click'];
   const onGesture = (e) => {
@@ -171,7 +182,25 @@ app.toggleFullscreen = () => { if (isFs()) (document.exitFullscreen || document.
     hint.classList.toggle('hidden', !show);
     if (iOS) hint.innerHTML = '📲 iPhone: Share ⬆️ → <b>Add to Home Screen</b> = Full Screen';
   };
-  document.addEventListener('fullscreenchange', updHint); document.addEventListener('webkitfullscreenchange', updHint);
+  // full screen lost (swipe up / back gesture / app switch): browsers need a new tap to restore it, so pause the race
+  // and make the next tap (RESUME, or the big "tap" layer) bring full screen back
+  let wantFs = false;
+  const ret = document.getElementById('fs-return'); const note = () => document.getElementById('pause-note');
+  const showReturn = (on) => ret.classList.toggle('hidden', !on);
+  const onFsChange = () => {
+    updHint();
+    if (isFs()) { wantFs = true; showReturn(false); note()?.classList.add('hidden'); return; }
+    if (!wantFs || !touch) return;
+    if (app.state === 'race' && !app.mp?.inRoom) { app.pause(); note()?.classList.remove('hidden'); }
+    else if (app.state === 'paused') note()?.classList.remove('hidden');
+    else showReturn(true);
+  };
+  document.addEventListener('fullscreenchange', onFsChange); document.addEventListener('webkitfullscreenchange', onFsChange);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !wantFs || !touch || isFs()) return;
+    if (app.state === 'paused') note()?.classList.remove('hidden'); else showReturn(true);
+  });
+  ret.addEventListener('click', () => { goFullscreen(); showReturn(false); });
   app.updFsHint = updHint; updHint();
   // "install app" (Android / desktop Chrome): the installed icon opens directly in full screen
   const ib = document.getElementById('install-btn'); let deferred = null;

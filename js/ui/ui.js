@@ -67,8 +67,9 @@ export class UI {
     $('#scr-loading').classList.add('ready'); $('.title-place').classList.remove('hidden');
 
     const b = $('#btn-tap'); b.classList.remove('hidden');
-    const go = (e) => { e.preventDefault(); b.removeEventListener('pointerup', go); fn(); };
-    b.addEventListener('pointerup', go);
+    // 'click' is the gesture every browser (incl. Safari) accepts for full screen
+    const go = (e) => { e.preventDefault(); b.removeEventListener('click', go); fn(); };
+    b.addEventListener('click', go);
   }
 
   // ---------------------------------------------------------------- lobby
@@ -348,6 +349,21 @@ export class UI {
       <div class="rb">${r.bike}</div><div class="rt">${r.est ? '~' : ''}${fmtTime(r.time)}</div></div>`).join('');
     $('#res-best').innerHTML = res.record ? '⭐ <b>NEW BEST TIME!</b> ⭐' : res.best ? `Best time: <b>${fmtTime(res.best)}</b>` : '';
     const again = $('[data-act="again"]'); again.classList.toggle('hidden', !!(this.app.mp && this.app.mp.inRoom && !this.app.mp.isHost));
+  }
+
+  /** iPhone Safari cannot make web pages full screen — explain the Home Screen app way */
+  iosFullscreenTip(onClose) {
+    this.panel(`<h3>📱 iPhone par FULL SCREEN</h3>
+      <div class="ios-tip">
+        <p>iPhone ka Safari kisi bhi website ko full screen nahi karne deta (ye Apple ka rule hai). Par game ko <b>app ki tarah</b> add karo — phir hamesha poori screen me khulega:</p>
+        <ol>
+          <li>Safari me neeche <b>Share</b> button dabao <span class="ios-ico">⬆️</span></li>
+          <li><b>"Add to Home Screen"</b> chuno <span class="ios-ico">➕</span></li>
+          <li>Home screen par <b>UK Riders</b> icon se game kholo — bina Safari bar ke, full screen 🏍️</li>
+        </ol>
+      </div>
+      <div class="res-btns"><button class="btn-yellow" data-act="close">THEEK HAI</button></div>`);
+    this.onPanelClose = onClose || null;
   }
 
   // ---------------------------------------------------------------- tutorial

@@ -527,3 +527,15 @@ canvas { touch-action: none; outline: none; }
 .link-row .link-box { flex: 1; margin: 0; display: flex; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .share-btn { font-size: 1.5em; padding: .3em .9em .15em; clip-path: none; }
 .seg button:disabled { opacity: .35; }
+
+/* ===================== full screen restore + iPhone tip ===================== */
+#fs-return { position: absolute; inset: 0; z-index: 70; background: rgba(3,6,12,.72); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3em; text-align: center; cursor: pointer; }
+#fs-return.hidden { display: none; }
+#fs-return .fr-ico { font-size: 9em; line-height: 1; color: var(--yel); animation: fsPulse2 1.4s ease-in-out infinite; }
+#fs-return b { font-family: 'Teko'; font-size: 6em; letter-spacing: .1em; line-height: 1; }
+#fs-return span { font-size: 2em; font-weight: 700; color: #dfe5f1; }
+@keyframes fsPulse2 { 50% { transform: scale(1.12); } }
+.pause-note { font-size: 1.5em; font-weight: 700; color: var(--yel); background: rgba(255,198,26,.1); border: 1px solid rgba(255,198,26,.4); padding: .5em .8em; }
+.ios-tip p { font-size: 1.35em; line-height: 1.35; color: #dfe5f1; margin: .2em 0 .6em; }
+.ios-tip ol { margin: 0; padding-left: 1.4em; display: grid; gap: .55em; font-size: 1.5em; line-height: 1.3; }
+.ios-tip .ios-ico { display: inline-block; margin-left: .3em; }
