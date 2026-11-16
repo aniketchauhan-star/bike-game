@@ -1,6 +1,15 @@
 // Player input: keyboard, on-screen touch buttons, tilt steering, gamepad. Produces smoothed {throttle, brake, steer}.
 import { clamp, damp } from '../core/util.js';
 
+/** Like a native game: the browser never sees touches on game controls (no iOS loupe, callout, selection or zoom).
+ *  Pointer events still fire, so the controls keep working. */
+export function noBrowserTouch(el) {
+  const stop = (e) => { if (e.cancelable) e.preventDefault(); };
+  for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) el.addEventListener(t, stop, { passive: false });
+  el.addEventListener('contextmenu', stop);
+  el.addEventListener('selectstart', stop);
+}
+
 export class Input {
   constructor() {
     this.keys = new Set();
@@ -35,6 +44,7 @@ export class Input {
       else if (k === 'e') this.emit('kickR');
       else if (k === 't') this.emit('say');
       else if (k === 'x' || k === 'Shift') this.emit('wheelie');
+      else if (k === 'f') this.emit('eat');
       else if (k === 'Escape' || k === 'p') this.emit('pause');
     } else this.keys.delete(k);
   }
@@ -43,6 +53,7 @@ export class Input {
   bindTouch(root) {
     root.querySelectorAll('[data-ctl]').forEach(el => {
       const ctl = el.dataset.ctl;
+      noBrowserTouch(el);  // iPhone: no long-press magnifier / copy menu / double-tap zoom on game buttons
       if (ctl === 'joy') { this.bindJoystick(el); return; }
       const press = (e) => {
         e.preventDefault(); el.classList.add('on');

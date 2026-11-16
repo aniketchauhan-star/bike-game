@@ -86,13 +86,16 @@ export const QUALITY = {
             treeHighR: 90, treeLowR: 90, cullScale: 1, bakeSky: false, triplanar: true, lite: false, shadowCasters: 'all', viewFar: 2100, drsMin: 0.7 },
   high:   { id: 'high', name: 'HIGH', pixelRatio: 1, maxDpr: 2, shadows: true, shadowSize: 2048, antialias: true, treeDensity: 1.0, people: 1,
             treeHighR: 130, treeLowR: 130, cullScale: 1, bakeSky: false, triplanar: true, lite: false, shadowCasters: 'all', viewFar: 3600, drsMin: 0.75 },
+  ultra:  { id: 'ultra', name: 'ULTRA', pixelRatio: 1, maxDpr: 3, shadows: true, shadowSize: 2048, antialias: true, treeDensity: 1.0, people: 1,
+            treeHighR: 160, treeLowR: 160, cullScale: 1.15, bakeSky: false, triplanar: true, lite: false, shadowCasters: 'all', viewFar: 4200, drsMin: 0.8 },
 };
 // Phones: same names in the menu, but tuned for smooth 60 fps (cheaper shaders, baked sky, opaque mid-distance trees,
 // only riders/vehicles cast shadows, lower pixel ratio). Dynamic resolution keeps the frame rate up on top of this.
 const PHONE = {
   low:    { maxDpr: 1, pixelRatio: 0.8, treeDensity: 0.32, treeLowR: 50, cullScale: 0.5, viewFar: 1200, drsMin: 0.5 },
   medium: { maxDpr: 1.25, shadowCasters: 'dynamic', treeDensity: 0.5, treeHighR: 26, treeLowR: 70, cullScale: 0.7, bakeSky: true, triplanar: false, lite: true, viewFar: 1700, drsMin: 0.55 },
-  high:   { maxDpr: 2, shadowSize: 1024, antialias: false, shadowCasters: 'all', treeDensity: 0.85, treeHighR: 70, treeLowR: 115, cullScale: 1, bakeSky: true, triplanar: true, lite: false, viewFar: 2800, drsMin: 0.65 },
+  high:   { maxDpr: 2.5, shadowSize: 2048, antialias: true, shadowCasters: 'all', treeDensity: 0.9, treeHighR: 85, treeLowR: 125, cullScale: 1, bakeSky: true, triplanar: true, lite: false, viewFar: 3100, drsMin: 0.75 },
+  ultra:  { maxDpr: 3, shadowSize: 2048, antialias: true, treeDensity: 1.0, treeHighR: 120, treeLowR: 150, bakeSky: true, viewFar: 3600, drsMin: 0.8 },
 };
 export function resolveQuality(id, phone) {
   const base = QUALITY[id] || QUALITY.medium;

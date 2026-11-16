@@ -8,6 +8,7 @@ import { CameraRig } from './camera.js';
 import { Voice } from '../audio/voice.js';
 import { Samples, COUNTDOWN_TIMES } from '../audio/samples.js';
 import { BusMusic } from '../audio/busmusic.js';
+import { MaggiBreak } from './maggi.js';
 import { charById, BIKES, DIFFICULTIES, Records } from '../config.js';
 
 const GRID = [{ ds: -4, d: -2.3 }, { ds: -7, d: 0.3 }, { ds: -10, d: 2.7 }];
@@ -56,6 +57,7 @@ export class Race {
     this.busMusic.setBuses([...(pop?.traffic || []).filter(t => t.kind === 'bus').map(t => ({ pos: t.g.position })), ...(pop?.special?.parkedBuses || []).map(g => ({ pos: g.position }))]);
     this.busMusic.volume = 0.9 * (app.settings.sfx ?? 0.9);
     this.racers.forEach(r => r.syncVisual(0, 0));
+    this.maggi = new MaggiBreak(this);
     this.buildIntro();
   }
 
@@ -64,6 +66,7 @@ export class Race {
     this.racers = [];
     Samples.setLoop('forest', 0); Samples.setLoop('wind', 0);
     this.busMusic?.stopAll();
+    this.maggi?.dispose();
     this.app.audio?.setRide?.({ speed: 0, skid: 0, scrape: 0, offroad: 0 });
     this.app.ui.offTrack(null);
   }
@@ -237,7 +240,7 @@ export class Race {
     }
     const sub = dt > 1 / 45 ? 3 : 2; const h = dt / sub;
     for (let k = 0; k < sub; k++) {
-      for (const r of racers) { if (r.kind === 'remote') continue; r.step(h, r === P ? pin : aiIn.get(r.id) || { throttle: 0, brake: 1, steer: 0 }); }
+      for (const r of racers) { if (r.kind === 'remote' || r.inMaggi) continue; r.step(h, r === P ? pin : aiIn.get(r.id) || { throttle: 0, brake: 1, steer: 0 }); }
       this.collideRacers(); this.collideObstacles();
     }
     for (const r of racers) if (r.kind === 'remote') r.applyRemote(now);
@@ -245,7 +248,7 @@ export class Race {
     // wrong way / stuck / off-track teleport (5 s)
     if (P.wrongWay > 1.2 && !P.finished) ui.warn('WRONG WAY! ⤺'); else ui.warn(null);
     if (P.stuck > 4) { P.reset(); P.stuck = 0; }
-    const off = P.crashed <= 0 && !P.finished && Math.abs(P.d) > this.T.halfWidth(P.s) + 5;
+    const off = P.crashed <= 0 && !P.finished && !P.inMaggi && Math.abs(P.d) > this.T.halfWidth(P.s) + 5;
     if (off) {
       this.offT += dt; ui.offTrack(Math.max(0, Math.ceil(OFF_TRACK_LIMIT - this.offT)));
       if (this.offT >= OFF_TRACK_LIMIT) { this.offT = 0; P.reset(); ui.offTrack(null); ui.toast('🔁 Wapas track par!'); Samples.play('whoosh', { volume: 0.7 }); }
@@ -276,6 +279,8 @@ export class Race {
         if (this.isHost) for (const r of racers) if (r.kind === 'ai') this.net.send({ t: 'st', id: r.id, ...r.snapshot() });
       }
     }
+    if (this.state === 'racing') this.maggi?.update(realDt);
+    { const dT = P.drunkT || 0; ui.drunk?.(dT > 0 ? Math.ceil(dT) : 0, P.drunkK || 0); if (this._wasDrunk && dT <= 0) ui.toast('😮‍💨 Nasha utar gaya — ab theek se chalao!'); this._wasDrunk = dT > 0; }
     for (const r of racers) r.syncVisual(dt, this.t);
     this.rig.update(realDt, P.crashed > 0 && P.rag ? { ...P, x: P.rag.p.x, y: P.rag.p.y - 0.4, z: P.rag.p.z, lean: 0, v: 6, offroad: 0, crashed: 1, wheelieA: 0 } : P);
     if (P.boosting && !this.td) this.rig.applyFov(this.app.camera.fov + 10, realDt * 3);
@@ -359,7 +364,7 @@ export class Race {
     const rs = this.racers;
     for (let i = 0; i < rs.length; i++) for (let j = i + 1; j < rs.length; j++) {
       const a = rs[i], b = rs[j];
-      if (a.crashed > 0 || b.crashed > 0 || a.ghost > 0 || b.ghost > 0 || a.air || b.air) continue;
+      if (a.crashed > 0 || b.crashed > 0 || a.ghost > 0 || b.ghost > 0 || a.air || b.air || a.inMaggi || b.inMaggi) continue;
       const ds = a.s - b.s, dd = a.d - b.d;
       if (Math.abs(ds) > 1.9 || Math.abs(dd) > 0.75) continue;
       const push = (0.76 - Math.abs(dd)) * 0.5 * (Math.sign(dd) || 1);
@@ -377,7 +382,7 @@ export class Race {
   collideObstacles() {
     const obs = this.world.obstacles;
     for (const r of this.racers) {
-      if (r.kind === 'remote' || r.crashed > 0 || r.ghost > 0) continue;
+      if (r.kind === 'remote' || r.crashed > 0 || r.ghost > 0 || r.inMaggi) continue;
       for (const o of obs) {
         if (Math.abs(o.s - r.s) > o.hl + 1.0 || Math.abs(o.d - r.d) > o.hw + 0.42) continue;
         if (r.air && r.y > this.T.surfaceY(o.s, o.d) + 2.2) continue;

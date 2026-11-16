@@ -53,7 +53,7 @@ function toTex(canvas, { srgb = true, repeat = 1 } = {}) {
   const t = new THREE.CanvasTexture(canvas);
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat);
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.needsUpdate = true;
+  t.anisotropy = 16; t.generateMipmaps = true; // three clamps to the GPU maximum t.minFilter = THREE.LinearMipmapLinearFilter; t.needsUpdate = true;
   return t;
 }
 

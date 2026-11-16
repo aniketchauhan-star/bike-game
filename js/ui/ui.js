@@ -45,6 +45,7 @@ export class UI {
       case 'skip': app.race?.skipIntro(); break;
       case 'close': this.closePanel(); break;
       case 'diff': app.setSetting('difficulty', el.dataset.val); app.audio?.ui?.('select'); break;
+      case 'eat': app.race?.maggi?.tryStart(); break;
       case 'vc-mic': app.voiceMic(); break;
       case 'vc-spk': app.voiceSpeaker(); break;
     }
@@ -150,7 +151,7 @@ export class UI {
       <div class="set-row"><label>Tilt Sensitivity<small>Tilt mode ke liye (HTTPS link chahiye)</small></label>${range('tiltSens', 0.5, 2, 0.1)}</div>
       <div class="set-row"><label>Vibration</label>${seg('vibrate', [[true, 'ON'], [false, 'OFF']])}</div>
       <div class="set-h">GRAPHICS</div>
-      <div class="set-row"><label>Quality<small>HIGH = best look • atke to MEDIUM / LOW</small></label>${seg('quality', Object.values(QUALITY).map(q => [q.id, q.name]))}</div>
+      <div class="set-row"><label>Quality<small>ULTRA = sabse saaf (naye phone) • HIGH = best • atke to MEDIUM</small></label>${seg('quality', Object.values(QUALITY).map(q => [q.id, q.name]))}</div>
       <div class="set-row"><label>FPS Limit</label>${seg('fpsLimit', [[30, '30'], [60, '60'], [0, 'MAX']])}</div>
       <div class="set-row"><label>Show FPS</label>${seg('showFps', [[true, 'ON'], [false, 'OFF']])}</div>
       <div class="set-row"><label>Screen<small>Poori screen ya 16:9</small></label>${seg('aspect', [['fill', 'FULL SCREEN'], ['16:9', '16:9']])}</div>
@@ -324,6 +325,18 @@ export class UI {
     clearTimeout(this._tdT); this._tdT = setTimeout(() => v.classList.remove('td', 'tdlose'), 2400);
   }
   cinematic(on) { this.game.classList.toggle('td-cam', !!on); }
+  eatButton(on, label) {
+    const b = $('#eat-btn'); if (!b) return;
+    if (on && label) { b.querySelector('.eat-ico').textContent = label.icon; b.querySelector('.eat-txt').textContent = label.text; }
+    if (b.classList.contains('hidden') === !!on) { b.classList.toggle('hidden', !on); if (on) this.app.audio?.ui?.('notify'); }
+  }
+  drunk(sec, k = 0) {
+    const h = $('#drunk-hud'); if (!h) return;
+    const on = sec > 0;
+    if (h.classList.contains('hidden') === on) { h.classList.toggle('hidden', !on); this.game.classList.toggle('drunk', on); }
+    if (on) { const b = h.querySelector('b'); if (b.textContent !== String(sec)) b.textContent = String(sec); this.game.style.setProperty('--dk', k.toFixed(2)); }
+  }
+  caption(text) { const c = $('#cine-cap'); if (!c) return; if (!text) { c.classList.add('hidden'); return; } c.textContent = text; c.classList.remove('hidden'); c.style.animation = 'none'; c.offsetHeight; c.style.animation = ''; }
   trick(t) { const el = $('#hud-trick'); el.textContent = t; el.classList.remove('show'); el.offsetHeight; el.classList.add('show'); }
   offTrack(n) {
     const el = $('#hud-off'); if (!el) return;
@@ -382,6 +395,7 @@ export class UI {
       { t: 'SETTINGS ⚙', x: 'Controls: <b>Tilt</b>, <b>Left-Right buttons</b> ya <b>Joystick</b>. Auto-gas, graphics, FPS aur sound bhi yahin.', el: '.lobby-top [data-act="settings"]' },
       { t: 'MULTIPLAYER 👥', x: 'Doston ke saath apne-apne phone se race — room banao, code/QR share karo.', el: '[data-act="multiplayer"]' },
       { t: 'RACE CONTROLS', x: touch ? '<b>GAS</b> / <b>BRAKE</b> + ◀ ▶ steer. Mod par steer karte hue <b>BRAKE tap</b> = DRIFT. <b>WHEELIE</b> button = 5 sec wheelie, <b>N₂O</b> = nitro boost (drift/wheelie se bharta hai). <b>🦵</b> = bagal wale ko laat, <b>💬</b> = dialogue, <b>📣</b> horn.' : '<kbd>W</kbd>/<kbd>↑</kbd> gas, <kbd>S</kbd>/<kbd>↓</kbd> brake, <kbd>A</kbd><kbd>D</kbd> steer. Mod par steer + brake = <b>DRIFT</b>. <kbd>X</kbd> = 5 sec wheelie, <kbd>N</kbd> nitro, <kbd>Q</kbd>/<kbd>E</kbd> laat, <kbd>T</kbd> dialogue, <kbd>C</kbd> camera, <kbd>R</kbd> reset.', el: null },
+      { t: 'MAGGI POINT 🍜', x: 'Raste me 3 Maggi stall hain (upar peela 🍜 marker). Uske saamne ruko aur <b>EAT MAGGI</b> dabao (keyboard: <kbd>F</kbd>) — helmet utaar ke Maggi khao, phir <b>full nitro</b>! Mohan gaon ke paas ek 🍺 BEER SHOP bhi hai — par peene ke baad nasha chadhega!', el: null },
       { t: 'TRACK SE BAHAR?', x: 'Jungle ya nadi ki taraf ja sakte ho (GTA jaisa!) — par 5 second me wapas nahi aaye to track par teleport ho jaoge.', el: null },
       { t: 'BAS! 🏁', x: '<b>START</b> dabao aur Ranikhet tak race jeeto!', el: '[data-act="start"]' },
     ];

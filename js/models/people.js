@@ -92,6 +92,11 @@ function buildPerson(L) {
   const neckTop = Y(1.5);
   const hc = neckTop + 0.085 * hs;                                         // head centre
   const H = (v) => v * hs;
+  // detail: 'high' (hero NPC for close-ups) → smoother head/limbs, real eyes, fingers. Default = crowd budget.
+  const hi = L.detail === 'high';
+  const E = (x, y, z, rx, ry, rz, ws, hs2, rot) => ellipsoid(x, y, z, rx, ry, rz, hi ? Math.round(ws * 1.8) : ws, hi ? Math.round(hs2 * 1.8) : hs2, rot);
+  const LB = (a, b, ra, rb, seg, bulge, lite) => limb(a, b, ra, rb, hi ? 12 : seg, bulge, hi ? false : lite);
+  const SG = (n) => (hi ? Math.round(n * 1.7) : n);
 
   const K = new RigKit();
   K.bone('root', null, 0, 0, 0)
@@ -100,6 +105,7 @@ function buildPerson(L) {
     .bone('chest', 'spine', 0, Y(1.26), 0)
     .bone('neck', 'chest', 0, Y(1.43), 0)
     .bone('head', 'neck', 0, neckTop, Z(0.005))
+    .bone('mouthL', 'head', 0, hc - H(0.05), H(0.083)).bone('mouthR', 'head', 0, hc - H(0.05), H(0.083))
     .bone('uArmL', 'chest', X(0.185), Y(1.39), 0).bone('fArmL', 'uArmL', X(0.205), Y(1.12), Z(-0.005)).bone('handL', 'fArmL', X(0.215), Y(0.885), Z(0.01))
     .bone('uArmR', 'chest', -X(0.185), Y(1.39), 0).bone('fArmR', 'uArmR', -X(0.205), Y(1.12), Z(-0.005)).bone('handR', 'fArmR', -X(0.215), Y(0.885), Z(0.01))
     .bone('uLegL', 'hips', X(0.09) * hipW, Y(0.9), 0).bone('lLegL', 'uLegL', X(0.095), Y(0.48), Z(0.005)).bone('footL', 'lLegL', X(0.095), Y(0.085), Z(-0.01))
@@ -152,37 +158,49 @@ function buildPerson(L) {
     { p: [0, Y(1.33), 0], w: X(0.172), h: Z(0.106) + bust * 0.5 },
     { p: [0, Y(1.405), 0], w: X(0.152), h: Z(0.09) },
     { p: [0, Y(1.45), 0], w: X(0.065), h: Z(0.055) },
-  ], { seg: 10, ref: [0, 0, 1] }), torsoCol, torsoBind);
+  ], { seg: SG(10), ref: [0, 0, 1] }), torsoCol, torsoBind);
   // pelvis
-  K.add(ellipsoid(0, Y(0.905), 0, X(0.148) * hipW, Y(0.075), Z(0.103), 7, 4), L.outfit === 'saree' ? C(L.saree) : bottom.clone(), 'hips');
+  K.add(E(0, Y(0.905), 0, X(0.148) * hipW, Y(0.075), Z(0.103), 7, 4), L.outfit === 'saree' ? C(L.saree) : bottom.clone(), 'hips');
   // shoulders
-  for (const s of [1, -1]) K.add(ellipsoid(s * X(0.163), Y(1.383), 0, X(0.052), Y(0.048), Z(0.052), 6, 4), cardi ? cardi : top, 'chest');
+  for (const s of [1, -1]) K.add(E(s * X(0.163), Y(1.383), 0, X(0.052), Y(0.048), Z(0.052), 6, 4), cardi ? cardi : top, 'chest');
   // neck
-  K.add(limb([0, Y(1.4), 0], [0, neckTop + 0.02, Z(0.008)], 0.047 * g * wf, 0.044 * wf, 6, 1.0, true), (p) => {
+  K.add(LB([0, Y(1.4), 0], [0, neckTop + 0.02, Z(0.008)], 0.047 * g * wf, 0.044 * wf, 6, 1.0, true), (p) => {
     if ((L.outfit === 'shirt' || L.outfit === 'school') && p.y < Y(1.455)) return top.clone().multiplyScalar(0.95); // collar
     return skin.clone();
   }, (p) => { const t = smoothstep(Y(1.43), neckTop, p.y); return [['chest', 1 - t], ['head', t]]; });
 
   // ---- head
-  K.add(ellipsoid(0, hc + H(0.008), -H(0.005), H(0.078), H(0.098), H(0.096), 9, 6), skin, 'head');
-  K.add(ellipsoid(0, hc - H(0.045), H(0.022), H(0.064), H(0.062), H(0.07), 7, 4), skin, 'head');
-  K.add(ellipsoid(0, hc - H(0.015), H(0.09), 0.012 * hs, 0.02 * hs, 0.016 * hs, 5, 3), skin.clone().multiplyScalar(0.92), 'head');
-  for (const s of [1, -1]) {
-    K.add(ellipsoid(s * H(0.077), hc - H(0.005), 0, 0.012 * hs, 0.027 * hs, 0.018 * hs, 5, 3), skin.clone().multiplyScalar(0.94), 'head');
-    K.add(ellipsoid(s * H(0.03), hc + H(0.008), H(0.082), 0.011 * hs, 0.0072 * hs, 0.006 * hs, 5, 3), 0x16100d, 'head');
-    K.add(ellipsoid(s * H(0.031), hc + H(0.027), H(0.085), 0.018 * hs, 0.0045 * hs, 0.006 * hs, 4, 3), hair.clone().multiplyScalar(L.age === 'old' ? 0.8 : 1), 'head');
+  if (hi) {
+    const st = [[-0.113, 0.016, 0.016, 0.046], [-0.103, 0.034, 0.038, 0.04], [-0.083, 0.052, 0.064, 0.026], [-0.052, 0.064, 0.081, 0.013],
+      [-0.022, 0.072, 0.091, 0.005], [0.01, 0.077, 0.096, -0.003], [0.045, 0.076, 0.095, -0.009], [0.073, 0.064, 0.082, -0.012],
+      [0.093, 0.042, 0.054, -0.014], [0.104, 0.012, 0.015, -0.014]];
+    K.add(loft(st.map(([y, w, dd, z]) => ({ p: [0, hc + H(y), H(z)], w: H(w), h: H(dd) })), { seg: 20, ref: [0, 0, 1], exp: 2.1 }), skin, 'head');
+  } else {
+    K.add(E(0, hc + H(0.008), -H(0.005), H(0.078), H(0.098), H(0.096), 9, 6), skin, 'head');
+    K.add(E(0, hc - H(0.045), H(0.022), H(0.064), H(0.062), H(0.07), 7, 4), skin, 'head');
   }
-  K.add(ellipsoid(0, hc - H(0.05), H(0.083), 0.019 * hs, 0.005 * hs, 0.006 * hs, 4, 3), lips, 'head');
-  if (L.mustache) K.add(ellipsoid(0, hc - H(0.035), H(0.088), 0.025 * hs, 0.0065 * hs, 0.008 * hs, 4, 3), hair, 'head');
-  if (L.beard) K.add(ellipsoid(0, hc - H(0.066), H(0.04), H(0.061), H(0.042), H(0.06), 7, 4), (p, n) => n.z > -0.2 ? hair.clone().lerp(skin, 0.15) : skin.clone(), 'head');
-  if (L.bindi) K.add(ellipsoid(0, hc + H(0.036), H(0.093), 0.005, 0.005, 0.003, 4, 3), 0xc0101a, 'head');
+  K.add(E(0, hc - H(0.015), H(0.09), 0.012 * hs, 0.02 * hs, 0.016 * hs, 5, 3), skin.clone().multiplyScalar(0.92), 'head');
+  for (const s of [1, -1]) {
+    K.add(E(s * H(0.077), hc - H(0.005), 0, 0.012 * hs, 0.027 * hs, 0.018 * hs, 5, 3), skin.clone().multiplyScalar(0.94), 'head');
+    if (hi) {
+      K.add(E(s * H(0.03), hc + H(0.008), H(0.084), 0.0125 * hs, 0.0078 * hs, 0.0065 * hs, 6, 4), 0xe9e2d6, 'head');   // sclera
+      K.add(E(s * H(0.03), hc + H(0.008), H(0.0895), 0.0062 * hs, 0.0062 * hs, 0.0028 * hs, 6, 4), 0x2b1a10, 'head'); // iris
+      K.add(E(s * H(0.03), hc + H(0.0145), H(0.0868), 0.0135 * hs, 0.0032 * hs, 0.006 * hs, 6, 3), skin.clone().multiplyScalar(0.78), 'head'); // upper lid
+    } else K.add(E(s * H(0.03), hc + H(0.008), H(0.082), 0.011 * hs, 0.0072 * hs, 0.006 * hs, 5, 3), 0x16100d, 'head');
+    K.add(E(s * H(0.031), hc + H(0.027), H(0.085), 0.018 * hs, 0.0045 * hs, 0.006 * hs, 4, 3), hair.clone().multiplyScalar(L.age === 'old' ? 0.8 : 1), 'head');
+  }
+  for (const [s, b] of [[1, 'mouthL'], [-1, 'mouthR']]) K.add(E(s * 0.0092 * hs, hc - H(0.05), H(0.083), 0.0118 * hs, 0.005 * hs, 0.006 * hs, 4, 3), lips, b);
+  if (L.mustache) K.add(E(0, hc - H(0.035), H(0.088), 0.025 * hs, 0.0065 * hs, 0.008 * hs, 4, 3), hair, 'head');
+  if (L.beard) K.add(E(0, hc - H(0.066), H(0.04), H(0.061), H(0.042), H(0.06), 7, 4), (p, n) => n.z > -0.2 ? hair.clone().lerp(skin, 0.15) : skin.clone(), 'head');
+  if (L.bindi) K.add(E(0, hc + H(0.036), H(0.093), 0.005, 0.005, 0.003, 4, 3), 0xc0101a, 'head');
   // hair
   const cap = (tilt, cover, sc = 1) => {
-    const gg = new THREE.SphereGeometry(1, 9, 4, 0, Math.PI * 2, 0, Math.PI * cover);
+    const gg = new THREE.SphereGeometry(1, hi ? 18 : 9, hi ? 8 : 4, 0, Math.PI * 2, 0, Math.PI * cover);
     for (const k of Object.keys(gg.attributes)) if (k !== 'position' && k !== 'normal') gg.deleteAttribute(k);
-    gg.scale(H(0.084) * sc, H(0.104) * sc, H(0.101) * sc);
+    const hk = hi ? 1.09 : 1.0; // the smooth high-detail skull is fuller on top
+    gg.scale(H(0.084) * sc * hk, H(0.104) * sc * hk, H(0.101) * sc * hk);
     gg.applyMatrix4(new THREE.Matrix4().makeRotationX(tilt));
-    gg.translate(0, hc + H(0.012), -H(0.008));
+    gg.translate(0, hc + H(hi ? 0.009 : 0.012), -H(0.008));
     return gg;
   };
   if (L.headscarf) {
@@ -191,14 +209,14 @@ function buildPerson(L) {
     K.add(cap(-1.2, 0.42, 1.0), hair, 'head');
   } else {
     K.add(cap(L.gender === 'f' ? -0.28 : -0.38, 0.56, 1.0), hair, 'head');
-    if (L.hairStyle === 'bun') K.add(ellipsoid(0, hc - H(0.01), -H(0.1), H(0.045), H(0.04), H(0.04), 6, 4), hair, 'head');
+    if (L.hairStyle === 'bun') K.add(E(0, hc - H(0.01), -H(0.1), H(0.045), H(0.04), H(0.04), 6, 4), hair, 'head');
     if (L.hairStyle === 'braid') K.add(tube([[0, hc - H(0.03), -H(0.09)], [0, hc - H(0.15), -H(0.115)], [0, hc - H(0.32), -H(0.12)], [0, hc - H(0.42), -H(0.115)]], [0.026 * hs, 0.022 * hs, 0.017 * hs, 0.01 * hs], { seg: 5 }),
       hair, (p) => { const t = smoothstep(hc - H(0.08), hc - H(0.2), p.y); return [['head', 1 - t], ['chest', t]]; });
-    if (L.hairStyle === 'bob') K.add(ellipsoid(0, hc - H(0.03), -H(0.03), H(0.088), H(0.07), H(0.09), 8, 4), hair, 'head');
+    if (L.hairStyle === 'bob') K.add(E(0, hc - H(0.03), -H(0.03), H(0.088), H(0.07), H(0.09), 8, 4), hair, 'head');
   }
   if (L.topi) { // Pahadi (Kumaoni) boat cap
-    K.add(ellipsoid(0, hc + H(0.082), -H(0.008), H(0.074), H(0.034), H(0.102), 8, 4), C(L.topi), 'head');
-    K.add(ellipsoid(0, hc + H(0.104), -H(0.008), H(0.012), H(0.014), H(0.095), 4, 3), C(L.topi).multiplyScalar(0.85), 'head');
+    K.add(E(0, hc + H(0.082), -H(0.008), H(0.074), H(0.034), H(0.102), 8, 4), C(L.topi), 'head');
+    K.add(E(0, hc + H(0.104), -H(0.008), H(0.012), H(0.014), H(0.095), 4, 3), C(L.topi).multiplyScalar(0.85), 'head');
   }
   if (L.beanie) K.add(cap(-0.2, 0.55, 1.08), C(L.beanie), 'head');
 
@@ -206,16 +224,25 @@ function buildPerson(L) {
   const longSleeve = ['kurta', 'sweater', 'shirt', 'school'].includes(L.outfit) || !!L.cardigan || (L.outfit === 'salwar' && L.seed % 2 === 0);
   const armTop = cardi ? cardi : top;
   for (const [s, u, f, h] of [[1, 'uArmL', 'fArmL', 'handL'], [-1, 'uArmR', 'fArmR', 'handR']]) {
-    K.add(limb([s * X(0.185), Y(1.39), 0], [s * X(0.205), Y(1.12), Z(-0.005)], 0.046 * g * wf, 0.039 * g * wf, 6, 1.0, true), (p) => {
+    K.add(LB([s * X(0.185), Y(1.39), 0], [s * X(0.205), Y(1.12), Z(-0.005)], 0.046 * g * wf, 0.039 * g * wf, 6, 1.0, true), (p) => {
       if (L.outfit === 'saree' && !cardi) return p.y > Y(1.3) ? top.clone() : skin.clone();
       if (!longSleeve) return p.y > Y(1.24) ? armTop.clone() : skin.clone();
       return armTop.clone();
     }, u);
-    K.add(limb([s * X(0.205), Y(1.12), Z(-0.005)], [s * X(0.215), Y(0.885), Z(0.01)], 0.038 * g * wf, 0.03 * wf, 6, 1.0, true), (p) => {
+    K.add(LB([s * X(0.205), Y(1.12), Z(-0.005)], [s * X(0.215), Y(0.885), Z(0.01)], 0.038 * g * wf, 0.03 * wf, 6, 1.0, true), (p) => {
       if (longSleeve) return p.y > Y(0.91) ? armTop.clone() : skin.clone();
       return skin.clone();
     }, f);
-    K.add(ellipsoid(s * X(0.218), Y(0.82), Z(0.012), 0.024 * wf, 0.055 * sy, 0.037 * wf, 6, 4), skin, h);
+    if (hi) {
+      const hx = s * X(0.217), hz = Z(0.012);
+      K.add(E(hx, Y(0.84), hz, 0.022 * wf, 0.042 * sy, 0.038 * wf, 6, 4), skin, h);
+      const fz = [0.021, 0.007, -0.007, -0.02], fl = [0.068, 0.076, 0.07, 0.056];
+      for (let k = 0; k < 4; k++) {
+        const z0 = hz + fz[k] * wf, y0 = Y(0.81), Lf = fl[k] * sy;
+        K.add(tube([[hx, y0, z0], [hx - s * 0.008, y0 - Lf * 0.55, z0], [hx - s * 0.02, y0 - Lf * 0.95, z0]], [0.0095 * wf, 0.0085 * wf, 0.0068 * wf], { seg: 6 }), skin, h);
+      }
+      K.add(tube([[hx - s * 0.008, Y(0.86), hz + 0.026 * wf], [hx - s * 0.018, Y(0.83), hz + 0.04 * wf], [hx - s * 0.03, Y(0.805), hz + 0.046 * wf]], [0.011 * wf, 0.009 * wf, 0.0075 * wf], { seg: 6 }), skin, h);
+    } else K.add(E(s * X(0.218), Y(0.82), Z(0.012), 0.024 * wf, 0.055 * sy, 0.037 * wf, 6, 4), skin, h);
   }
   // ---- legs
   const legCol = (p) => {
@@ -229,9 +256,9 @@ function buildPerson(L) {
     return L.shoes === 'black' ? C(0x18181a) : C(0x4a3020);
   };
   for (const [s, u, l, f] of [[1, 'uLegL', 'lLegL', 'footL'], [-1, 'uLegR', 'lLegR', 'footR']]) {
-    K.add(limb([s * X(0.09) * hipW, Y(0.9), 0], [s * X(0.095), Y(0.48), Z(0.005)], 0.076 * g * wf, 0.054 * g * wf, 6, 1.0, true), legCol, u);
-    K.add(limb([s * X(0.095), Y(0.48), Z(0.005)], [s * X(0.095), Y(0.09), Z(-0.01)], 0.052 * g * wf, 0.035 * wf, 6, 1.04, true), legCol, l);
-    K.add(ellipsoid(s * X(0.095), 0.04, Z(0.045), 0.044 * wf, 0.036, 0.112 * Math.min(1, sy * 1.05), 6, 4), shoeCol, f);
+    K.add(LB([s * X(0.09) * hipW, Y(0.9), 0], [s * X(0.095), Y(0.48), Z(0.005)], 0.076 * g * wf, 0.054 * g * wf, 6, 1.0, true), legCol, u);
+    K.add(LB([s * X(0.095), Y(0.48), Z(0.005)], [s * X(0.095), Y(0.09), Z(-0.01)], 0.052 * g * wf, 0.035 * wf, 6, 1.04, true), legCol, l);
+    K.add(E(s * X(0.095), 0.04, Z(0.045), 0.044 * wf, 0.036, 0.112 * Math.min(1, sy * 1.05), 6, 4), shoeCol, f);
   }
   // ---- garments
   const skirtBind = (lenFac) => (p) => {
@@ -249,7 +276,7 @@ function buildPerson(L) {
       { p: [0, hem, 0], w: X(0.182) * hipW * flare, h: Z(0.137) * flare },
     ];
     const kc = L.outfit === 'school' ? bottom : top;
-    K.add(loft(st, { seg: 10, ref: [0, 0, 1] }), (p) => {
+    K.add(loft(st, { seg: SG(10), ref: [0, 0, 1] }), (p) => {
       const c = kc.clone(); if (p.y < hem + 0.02) c.multiplyScalar(0.9); return c;
     }, skirtBind(Y(1.0) - hem));
   }
@@ -262,7 +289,7 @@ function buildPerson(L) {
       { p: [0, 0.165, 0], w: X(0.213) * hipW, h: Z(0.163) },
       { p: [0, 0.15, 0], w: X(0.214) * hipW, h: Z(0.164) },
       { p: [0, 0.035, 0], w: X(0.22) * hipW, h: Z(0.17) },
-    ], { seg: 10, ref: [0, 0, 1] }), (p, n) => {
+    ], { seg: SG(10), ref: [0, 0, 1] }), (p, n) => {
       if (p.y < 0.158) return bc.clone(); // border at the hem
       const pleat = n.z > 0.6 && Math.abs(p.x) < X(0.05) ? 0.88 : 1; // front pleats
       return sc.clone().multiplyScalar(pleat);
@@ -285,20 +312,23 @@ function buildPerson(L) {
       { p: [0, Y(1.33), 0], w: X(0.235), h: Z(0.152) },
       { p: [0, Y(1.18), 0], w: X(0.24), h: Z(0.156) },
       { p: [0, Y(1.1), 0], w: X(0.236), h: Z(0.152) },
-    ], { seg: 10, ref: [0, 0, 1] }), (p) => { const c = C(L.shawl); if (p.y < Y(1.14)) c.multiplyScalar(0.82); return c; }, 'chest');
+    ], { seg: SG(10), ref: [0, 0, 1] }), (p) => { const c = C(L.shawl); if (p.y < Y(1.14)) c.multiplyScalar(0.82); return c; }, 'chest');
   }
   if (L.bag) {
     if (L.schoolBag) {
-      K.add(ellipsoid(0, Y(1.2), -Z(0.17), X(0.13), Y(0.15), Z(0.07), 6, 4), C(L.bag), 'chest');
+      K.add(E(0, Y(1.2), -Z(0.17), X(0.13), Y(0.15), Z(0.07), 6, 4), C(L.bag), 'chest');
     } else {
       K.add(loft([{ p: [X(0.16), Y(1.43), 0], w: 0.022, h: 0.004 }, { p: [X(0.05), Y(1.3), Z(0.115)], w: 0.022, h: 0.004 }, { p: [-X(0.1), Y(1.1), Z(0.12)], w: 0.022, h: 0.004 }, { p: [-X(0.18), Y(0.98), Z(0.05)], w: 0.022, h: 0.004 }], { seg: 4, pt: true }), C(L.bag).multiplyScalar(0.8), 'chest');
-      K.add(ellipsoid(-X(0.2), Y(0.9), Z(0.03), X(0.04), Y(0.11), Z(0.12), 6, 4), C(L.bag), 'hips');
+      K.add(E(-X(0.2), Y(0.9), Z(0.03), X(0.04), Y(0.11), Z(0.12), 6, 4), C(L.bag), 'hips');
     }
   }
   if (L.stick) K.add(tube([[-X(0.218), Y(0.84), Z(0.02)], [-X(0.23), Y(0.42), Z(0.06)], [-X(0.24), 0.0, Z(0.1)]], [0.012, 0.011, 0.01], { seg: 5 }), 0x5a3a22, 'handR');
-  if (L.phone) K.add(ellipsoid(-X(0.218), Y(0.79), Z(0.04), 0.008, 0.04, 0.035, 4, 3), 0x111214, 'handR');
+  if (L.phone) K.add(E(-X(0.218), Y(0.79), Z(0.04), 0.008, 0.04, 0.035, 4, 3), 0x111214, 'handR');
   if (L.cup && L.sitting) K.add(loft([{ p: [-X(0.22), Y(0.78), Z(0.055)], r: 0.022 }, { p: [-X(0.22), Y(0.83), Z(0.055)], r: 0.027 }], { seg: 6 }), 0xf0ece0, 'handR');
-  return { tpl: K.build(), dims: { sy, hipY: Y(0.93), hs } };
+  // palm centre relative to the hand bone (wrist), per side; hand half-thickness
+  const palmOffR = new THREE.Vector3(-X(0.003), Y(0.82) - Y(0.885), Z(0.002));
+  const palmOffL = new THREE.Vector3(X(0.003), Y(0.82) - Y(0.885), Z(0.002));
+  return { tpl: K.build(), dims: { sy, hipY: Y(0.93), hs, hc, neckTop, wf, palmOffR, palmOffL, handT: 0.024 * wf } };
 }
 
 // ------------------------------------------------------------------ poses
@@ -326,6 +356,10 @@ function armStyle(T, style, t, o) {
       T['fArmL.rx'] = -0.12; T['fArmR.rx'] = -0.14;
   }
 }
+
+// stirring rhythm shared by the 'cook' channels and its IK targets (≈1 circle / s with slight tempo drift)
+const stirPhase = (t, o) => t * Math.PI * 2 * 0.95 + Math.sin(t * 0.37 + o.a) * 0.5;
+const stirLift = (t, o) => smoothstep(0.85, 0.98, Math.sin(t * 0.55 + o.b)); // lift the ladle to check the noodles
 
 function personPose(T, pose, t, o, L, d) {
   const old = L.age === 'old';
@@ -372,6 +406,33 @@ function personPose(T, pose, t, o, L, d) {
     T['uArmL.rx'] = -0.95; T['uArmR.rx'] = -0.95; T['fArmL.rx'] = -0.4; T['fArmR.rx'] = -0.4; T['uArmL.rz'] = 0.15; T['uArmR.rz'] = -0.15;
     return;
   }
+  if (pose === 'cook' || pose === 'serve') {
+    // arms are solved by IK in createPerson(); here: weight shift, lean over the counter, head & face
+    const sw = Math.sin(t * 0.4 + o.a);
+    T['hips.rz'] = sw * 0.018; T['hips.px'] = sw * 0.01;
+    T['uLegL.rz'] = -sw * 0.018 + 0.025; T['uLegR.rz'] = -sw * 0.018 - 0.025;
+    T['spine.rz'] = -sw * 0.01;
+    if (pose === 'cook') {
+      const ph = stirPhase(t, o);
+      T['spine.rx'] = (T['spine.rx'] || 0) + 0.07; T['chest.rx'] += 0.06;
+      T['chest.ry'] = Math.sin(ph) * 0.03 - 0.04; T['chest.rz'] = Math.cos(ph) * 0.012;
+      const glance = smoothstep(0.86, 0.97, Math.sin(t * 0.43 + o.c));   // now and then looks up at the customer
+      const down = Math.max(0, d.cookPitch - 0.13 - (old ? 0.22 : 0));
+      T['neck.rx'] = (T['neck.rx'] || 0) + lerp(down * 0.35, 0.02, glance);
+      T['head.rx'] = (T['head.rx'] || 0) + lerp(down * 0.65 + Math.sin(ph) * 0.015, -0.1, glance);
+      T['head.ry'] = lerp(d.cookYaw * 0.7 + Math.cos(ph) * 0.035, 0.05, glance); T['neck.ry'] = d.cookYaw * 0.3 * (1 - glance);
+      T['head.rz'] = Math.sin(t * 0.3 + o.b) * 0.03;
+    } else {
+      T['spine.rx'] = (T['spine.rx'] || 0) + 0.11; T['chest.rx'] += 0.08;
+      T['spine.ry'] = (d.serveYaw || 0) * 0.5; T['chest.ry'] = (d.serveYaw || 0) * 0.5;
+      const nc = (t + o.b) % 2.8; const nod = nc < 0.75 ? Math.sin((nc / 0.75) * Math.PI) : 0;  // small nod
+      T['neck.rx'] = (T['neck.rx'] || 0) - 0.07 + nod * 0.05;
+      T['head.rx'] = (T['head.rx'] || 0) - 0.13 + nod * 0.13;
+      T['head.ry'] = Math.sin(t * 0.5 + o.a) * 0.05; T['head.rz'] = 0.04 + Math.sin(t * 0.35) * 0.02;
+      T['mouthL.rz'] = 0.42; T['mouthR.rz'] = -0.42; // smile
+    }
+    return;
+  }
   // standing family: stand / wave / cheer
   const sway = Math.sin(t * 0.35 + o.a);
   T['hips.rz'] = sway * 0.025; T['hips.px'] = sway * 0.012;
@@ -399,19 +460,69 @@ function personPose(T, pose, t, o, L, d) {
   armStyle(T, L.armStyle, t, o.a);
 }
 
+// ------------------------------------------------------------------ arm IK (for 'cook' / 'serve')
+const _inv = new THREE.Matrix4(), _mc = new THREE.Matrix4(), _mu = new THREE.Matrix4(), _mh = new THREE.Matrix4(), _mb = new THREE.Matrix4();
+const _cp = new THREE.Vector3(), _cs = new THREE.Vector3(), _Qc = new THREE.Quaternion(), _S = new THREE.Vector3();
+const _d = new THREE.Vector3(), _dir = new THREE.Vector3(), _pp = new THREE.Vector3(), _E = new THREE.Vector3(), _W = new THREE.Vector3();
+const _a1 = new THREE.Vector3(), _a2 = new THREE.Vector3(), _qs = new THREE.Quaternion(), _Qu = new THREE.Quaternion(), _Qf = new THREE.Quaternion();
+const _tip = new THREE.Vector3(), _F = new THREE.Vector3(), _N = new THREE.Vector3(), _pole = new THREE.Vector3(), _X = new THREE.Vector3(), _Yv = new THREE.Vector3(), _Zv = new THREE.Vector3();
+const _pr = new THREE.Vector3(), _pl = new THREE.Vector3(), _mid = new THREE.Vector3();
+const _sol = { qU: new THREE.Quaternion(), qF: new THREE.Quaternion(), qH: new THREE.Quaternion() };
+
+/** two-bone IK in mesh space. S shoulder, Qc chest rotation, v1/v2 rest bone vectors, palmOff (hand-local), target palm P + hand rotation Qh */
+function solveArm(S, Qc, v1, v2, palmOff, P, Qh, pole, out) {
+  const L1 = v1.length(), L2 = v2.length();
+  _W.copy(palmOff).applyQuaternion(Qh).negate().add(P);           // wrist target
+  _d.subVectors(_W, S);
+  let dist = _d.length();
+  _dir.copy(_d).divideScalar(dist > 1e-6 ? dist : 1);
+  dist = clamp(dist, Math.abs(L1 - L2) + 1e-3, (L1 + L2) * 0.9995);
+  const a = (L1 * L1 - L2 * L2 + dist * dist) / (2 * dist);
+  const h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
+  _pp.copy(pole).addScaledVector(_dir, -pole.dot(_dir));
+  if (_pp.lengthSq() < 1e-8) _pp.set(0, -1, 0);
+  _pp.normalize();
+  _E.copy(S).addScaledVector(_dir, a).addScaledVector(_pp, h);   // elbow
+  _W.copy(S).addScaledVector(_dir, dist);                         // reachable wrist
+  _a1.copy(v1).applyQuaternion(Qc).normalize(); _a2.subVectors(_E, S).normalize();
+  _qs.setFromUnitVectors(_a1, _a2); _Qu.copy(_qs).multiply(Qc);
+  _a1.copy(v2).applyQuaternion(_Qu).normalize(); _a2.subVectors(_W, _E).normalize();
+  _qs.setFromUnitVectors(_a1, _a2); _Qf.copy(_qs).multiply(_Qu);
+  out.qU.copy(Qc).invert().multiply(_Qu);
+  out.qF.copy(_Qu).invert().multiply(_Qf);
+  out.qH.copy(_Qf).invert().multiply(Qh);
+}
+/** hand rotation from fingers direction F and palm normal N (orthonormal). Right hand: local +X = palm normal; left: local −X. Local −Y = fingers. */
+function handQuat(F, N, side, out) {
+  _X.copy(N); if (side === 'L') _X.negate();
+  _Yv.copy(F).negate();
+  _Zv.crossVectors(_X, _Yv);
+  _mb.makeBasis(_X, _Yv, _Zv);
+  return out.setFromRotationMatrix(_mb);
+}
+
 // ------------------------------------------------------------------ factory
 /**
- * createPerson({ seed, gender:'m'|'f', age:'adult'|'old'|'kid', pose:'stand'|'sit'|'wave'|'cheer'|'walk'|'squat', static:false })
- * → { group, update(dt), setPose(p), walkSpeed (m/s, for 'walk'), look, height }
+ * createPerson({ seed, gender:'m'|'f', age:'adult'|'old'|'kid',
+ *                pose:'stand'|'sit'|'wave'|'cheer'|'walk'|'squat'|'cook'|'serve', static:false,
+ *                detail:'normal'|'high' })   // 'high' = hero NPC for close-ups (smooth head, real eyes, fingers; ≈4–5k tris, still 1 draw call)
+ * → { group, update(dt), setPose(p), holdProp(obj|null, hand='right', grip='auto'), setStation({pot, counterY, counterZ}),
+ *     walkSpeed (m/s, for 'walk'), look, height }
+ * 'cook'  : behind a counter (top y≈0.95, ≈0.45 m ahead), right hand stirs a pot at (−0.05, 1.05, 0.45) in small circles,
+ *           left palm rests on the counter, head looks down at the pot (glances up now and then), slight sway.
+ * 'serve' : leans in, both palms up at counter height ≈0.42 m ahead offering a plate toward +Z, small nods, smile.
+ * stand ↔ cook ↔ serve blend in 0.3 s (arms via IK, everything else via the pose animator).
  */
 export function createPerson(opts = {}) {
   const seed = opts.seed ?? 1;
   const L = makeLook(seed, opts);
   let pose = opts.pose || 'stand';
   L.sitting = pose === 'sit';
+  L.detail = opts.detail || 'normal';
   const { tpl, dims } = buildPerson(L);
   const mat = getPeopleMaterial();
   const inst = instantiate(tpl, mat);
+  const B = inst.bones;
   const anim = new Animator(inst.bones, inst.rest);
   const r = makeRng(seed * 31 + 7);
   const o = { a: r() * 10, b: r() * 10, c: r() * 10 };
@@ -419,8 +530,104 @@ export function createPerson(opts = {}) {
   const d = { ...dims, walkSpeed };
   const T = {};
   let t = r() * 100;
-  const evalPose = (dt) => { for (const k in T) T[k] = 0; personPose(T, pose, t, o, L, d); anim.apply(T, dt); };
-  evalPose(0);
+
+  // ---- 'cook' / 'serve' station + IK state
+  const IKP = { cook: true, serve: true };
+  const station = { pot: new THREE.Vector3(-0.05, 1.05, 0.45), counterY: 0.95, counterZ: 0.45, serve: new THREE.Vector3(), serveSet: false };
+  const computeLook = () => {
+    if (!station.serveSet) station.serve.set(station.pot.x + 0.25, station.counterY + 0.085, station.counterZ - 0.03);
+    d.serveYaw = Math.atan2(station.serve.x, Math.max(0.2, station.serve.z)) * 0.5;
+    const eyeY = d.hc + 0.008 * d.hs, eyeZ = 0.085;
+    d.cookPitch = Math.atan2(eyeY - station.pot.y, Math.max(0.15, station.pot.z - eyeZ));
+    d.cookYaw = Math.atan2(station.pot.x, Math.max(0.15, station.pot.z - eyeZ));
+  };
+  computeLook();
+  const mkT = () => ({ P: new THREE.Vector3(), Q: new THREE.Quaternion(), pole: new THREE.Vector3(0, -1, 0) });
+  const copyT = (dst, src) => { dst.P.copy(src.P); dst.Q.copy(src.Q); dst.pole.copy(src.pole); return dst; };
+  const live = { R: mkT(), L: mkT() };
+  const ik = { w: IKP[pose] ? 1 : 0, serveW: pose === 'serve' ? 1 : 0, k: 1, snap: null, last: IKP[pose] ? pose : 'cook', eff: { R: mkT(), L: mkT() } };
+  const setT = (tg, side, px, py, pz, F, N, pole) => {
+    tg.P.set(px, py, pz); F.normalize(); N.addScaledVector(F, -N.dot(F)).normalize();
+    handQuat(F, N, side, tg.Q); tg.pole.copy(pole).normalize();
+  };
+  function liveTargets(p) {
+    const pot = station.pot;
+    if (p === 'cook') {
+      const ph = stirPhase(t, o), lift = stirLift(t, o);
+      const px = pot.x - 0.015 + Math.cos(ph) * 0.034, py = pot.y + 0.195 + Math.sin(2 * ph) * 0.005 + lift * 0.05, pz = pot.z - 0.115 + Math.sin(ph) * 0.026;
+      _tip.set(pot.x + Math.cos(ph - 0.3) * 0.045, pot.y - 0.06 + lift * 0.065, pot.z + 0.01 + Math.sin(ph - 0.3) * 0.04);
+      setT(live.R, 'R', px, py, pz, _F.set(_tip.x - px, _tip.y - py, _tip.z - pz), _N.set(0.85, 0.05, 0.35), _pole.set(-0.75, -0.45, -0.4));
+      const wob = Math.sin(t * 0.9 + o.c) * 0.004;
+      setT(live.L, 'L', pot.x + 0.25, station.counterY + d.handT, station.counterZ - 0.08 + wob, _F.set(-0.3, -0.04, 1), _N.set(0, -1, 0), _pole.set(0.65, -0.35, -0.6));
+    } else { // serve: palms up under the plate, offered over the free counter space (left of the pot by default)
+      const sv = station.serve;
+      const y = sv.y, z = sv.z + Math.sin(t * 1.3 + o.a) * 0.012, x = sv.x;
+      setT(live.R, 'R', x - 0.11, y, z, _F.set(0.22, 0.04, 1), _N.set(0, 1, 0), _pole.set(-0.4, -0.85, -0.25));
+      setT(live.L, 'L', x + 0.11, y, z, _F.set(-0.22, 0.04, 1), _N.set(0, 1, 0), _pole.set(0.4, -0.85, -0.25));
+    }
+  }
+  function blendTargets(dt) {
+    if (ik.snap) {
+      ik.k = Math.min(1, ik.k + dt / 0.3);
+      const e = ik.k * ik.k * (3 - 2 * ik.k);
+      for (const s of ['R', 'L']) {
+        const a = ik.snap[s], b = live[s], c = ik.eff[s];
+        c.P.lerpVectors(a.P, b.P, e); c.Q.slerpQuaternions(a.Q, b.Q, e); c.pole.lerpVectors(a.pole, b.pole, e).normalize();
+      }
+      if (ik.k >= 1) ik.snap = null;
+    } else { copyT(ik.eff.R, live.R); copyT(ik.eff.L, live.L); }
+  }
+  function applyIK() {
+    const mesh = inst.mesh;
+    mesh.updateMatrixWorld(true);
+    _inv.copy(mesh.matrixWorld).invert();
+    _mc.multiplyMatrices(_inv, B.chest.matrixWorld); _mc.decompose(_cp, _Qc, _cs);
+    const w = ik.w * ik.w * (3 - 2 * ik.w);
+    for (const s of ['R', 'L']) {
+      const U = B['uArm' + s];
+      _mu.multiplyMatrices(_inv, U.matrixWorld); _S.setFromMatrixPosition(_mu);
+      const tg = ik.eff[s];
+      solveArm(_S, _Qc, inst.rest['fArm' + s], inst.rest['hand' + s], s === 'R' ? d.palmOffR : d.palmOffL, tg.P, tg.Q, tg.pole, _sol);
+      U.quaternion.slerp(_sol.qU, w); B['fArm' + s].quaternion.slerp(_sol.qF, w); B['hand' + s].quaternion.slerp(_sol.qH, w);
+    }
+    B.uArmR.updateMatrixWorld(true); B.uArmL.updateMatrixWorld(true);
+  }
+
+  // ---- held props
+  const props = { right: null, left: null };
+  const palmSurface = (s, out) => {
+    out.copy(s === 'R' ? d.palmOffR : d.palmOffL); out.x += (s === 'R' ? 1 : -1) * d.handT;
+    _mh.multiplyMatrices(_inv, B['hand' + s].matrixWorld);
+    return out.applyMatrix4(_mh);
+  };
+  function updateTray(ikDone) {
+    const side = props.right && props.right.grip === 'tray' ? 'right' : (props.left && props.left.grip === 'tray' ? 'left' : null);
+    if (!side) return;
+    if (!ikDone) { inst.mesh.updateMatrixWorld(true); _inv.copy(inst.mesh.matrixWorld).invert(); }
+    palmSurface('R', _pr); palmSurface('L', _pl);
+    const sw = ik.serveW * ik.serveW * (3 - 2 * ik.serveW);
+    _mid.addVectors(_pr, _pl).multiplyScalar(0.5);
+    const node = props[side].node;
+    node.position.lerpVectors(side === 'right' ? _pr : _pl, _mid, sw);
+    node.quaternion.identity(); // trays stay level, facing +Z
+  }
+
+  function step(dt) {
+    for (const k in T) T[k] = 0;
+    personPose(T, pose, t, o, L, d);
+    anim.apply(T, dt);
+    const ramp = (v, target) => clamp(v + Math.sign(target - v) * dt / 0.3, 0, 1);
+    if (dt > 0) { ik.w = ramp(ik.w, IKP[pose] ? 1 : 0); ik.serveW = ramp(ik.serveW, pose === 'serve' ? 1 : 0); }
+    let ikDone = false;
+    if (ik.w > 0) {
+      if (IKP[pose]) ik.last = pose;
+      liveTargets(ik.last);
+      blendTargets(dt);
+      applyIK(); ikDone = true;
+    }
+    updateTray(ikDone);
+  }
+  step(0);
 
   if (opts.static) {
     // bake the current pose into a plain mesh (1 draw call, no skinning, no animation)
@@ -440,16 +647,66 @@ export function createPerson(opts = {}) {
     geo.computeBoundingSphere();
     const sm = new THREE.Mesh(geo, mat); sm.castShadow = true; sm.receiveShadow = true;
     const group = new THREE.Group(); group.name = 'person_static'; group.add(sm);
-    return { group, update() {}, setPose() {}, walkSpeed: 0, look: L, height: L.H, static: true };
+    return { group, update() {}, setPose() {}, holdProp() { return null; }, setStation() {}, walkSpeed: 0, look: L, height: L.H, static: true };
   }
 
   const group = new THREE.Group(); group.name = 'person'; group.add(inst.mesh);
-  return {
+  const fast = (x) => x === 'stand' || x === 'cook' || x === 'serve';
+  const api = {
     group, look: L, height: L.H, walkSpeed,
     get pose() { return pose; },
-    setPose(p) { if (p === pose) return; anim.transition(p === 'sit' || pose === 'sit' || p === 'squat' || pose === 'squat' ? 0.8 : 0.4); pose = p; },
-    update(dt = 0) { dt = Math.min(dt, 0.1); t += dt; evalPose(dt); },
+    setPose(p) {
+      if (p === pose) return;
+      anim.transition(fast(p) && fast(pose) ? 0.3 : (p === 'sit' || pose === 'sit' || p === 'squat' || pose === 'squat' ? 0.8 : 0.4));
+      if (IKP[p] && ik.w > 0) { ik.snap = { R: copyT(mkT(), ik.eff.R), L: copyT(mkT(), ik.eff.L) }; ik.k = 0; } // re-target smoothly (cook ↔ serve)
+      pose = p;
+    },
+    /**
+     * Attach a prop to a hand (or remove with obj = null). The prop's own position/rotation are reset; scale is kept.
+     *  grip 'handle': parented to the hand, origin at the palm, prop +Y along the fingers, +Z out of the palm (ladle, spoon, glass…)
+     *  grip 'tray'  : kept level (+Y up, +Z forward); sits on that palm, and is centred between both palms while in 'serve'
+     *  grip 'auto'  : 'tray' for flat objects (bbox height < 0.8 × width), else 'handle'
+     * returns the attachment node (or null)
+     */
+    holdProp(obj, hand = 'right', grip = 'auto') {
+      const side = hand === 'left' ? 'left' : 'right';
+      const slot = props[side];
+      if (slot) { slot.node.removeFromParent(); slot.node.remove(slot.obj); props[side] = null; }
+      if (!obj) return null;
+      obj.removeFromParent();
+      obj.position.set(0, 0, 0); obj.quaternion.identity();
+      let g = grip;
+      if (g !== 'handle' && g !== 'tray') {
+        obj.updateMatrixWorld(true);
+        const sz = new THREE.Box3().setFromObject(obj, true).getSize(new THREE.Vector3());
+        g = sz.y < 0.8 * Math.max(sz.x, sz.z) ? 'tray' : 'handle';
+      }
+      const node = new THREE.Group(); node.name = 'prop_' + side; node.add(obj);
+      if (g === 'handle') {
+        const sg = side === 'right' ? 1 : -1, s = side === 'right' ? 'R' : 'L';
+        node.position.copy(s === 'R' ? d.palmOffR : d.palmOffL); node.position.x += sg * 0.022 * d.wf;
+        _Yv.set(0, -1, 0); _Zv.set(sg, 0, 0); _X.crossVectors(_Yv, _Zv);
+        node.quaternion.setFromRotationMatrix(_mb.makeBasis(_X, _Yv, _Zv));
+        B['hand' + s].add(node);
+      } else {
+        group.add(node);
+      }
+      props[side] = { obj, node, grip: g };
+      if (g === 'tray') updateTray(false);
+      return node;
+    },
+    /** move the stall layout (person-local): pot centre [x,y,z], counter top height, counter distance ahead,
+     *  serve = plate centre [x,y,z] for 'serve' (default: 0.25 m left of the pot, just above the counter) */
+    setStation({ pot, counterY, counterZ, serve } = {}) {
+      if (pot) station.pot.set(pot[0], pot[1], pot[2]);
+      if (counterY != null) station.counterY = counterY;
+      if (counterZ != null) station.counterZ = counterZ;
+      if (serve) { station.serve.set(serve[0], serve[1], serve[2]); station.serveSet = true; }
+      computeLook();
+    },
+    update(dt = 0) { dt = Math.min(dt, 0.1); t += dt; step(dt); },
   };
+  return api;
 }
 
 /** convenience: many people scattered in a box (bus stand / finish line). → { group, people, update } */

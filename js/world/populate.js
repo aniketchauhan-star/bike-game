@@ -64,7 +64,7 @@ export class Populator {
   async run(M, onProgress = () => {}) {
     const steps = [
       ['town', () => this.town(M)], ['forest', () => this.forest(M)], ['river', () => this.river(M)],
-      ['mountain', () => this.mountain(M)], ['ridge', () => this.ridge(M)], ['roadside', () => this.roadside(M)],
+      ['mountain', () => this.mountain(M)], ['ridge', () => this.ridge(M)], ['maggi', () => this.maggi(M)], ['roadside', () => this.roadside(M)],
       ['traffic', () => this.trafficSetup(M)],
     ];
     for (let i = 0; i < steps.length; i++) {
@@ -401,6 +401,53 @@ export class Populator {
     console.log(`[populate] batched ${merged} meshes into ${made}`);
   }
 
+  /** roadside Maggi points (stop + EAT = cinematic break, see game/maggi.js) */
+  maggi(M) {
+    const { createMaggiStall, createMaggiMarker } = M.maggi || {};
+    const { createPerson } = M.people || {};
+    this.special.maggi = [];
+    if (!createMaggiStall) return;
+    const T = this.T; const UP = new THREE.Vector3(0, 1, 0);
+    [[1985, 'KOSI'], [3215, 'PAHADI'], [4672, 'RANIKHET']].forEach(([s, name], k) => {
+      const side = this.uphillSide(s); const half = T.halfWidth(s);
+      const stall = tryCall(createMaggiStall, { seed: 50 + k }); if (!stall) return;
+      const p = this.pos(s, side * (half + 5.2)); const yaw = this.yawFaceRoad(s, side);
+      if (!this.place(stall, p, yaw, { anim: true, near: 240, reserve: 4.6 })) return;
+      const keeper = tryCall(createPerson, { seed: 900 + k, gender: 'm', age: k === 1 ? 'old' : 'adult', pose: 'cook', detail: 'high' });
+      const kp = stall.keeperLocal.clone().applyAxisAngle(UP, yaw).add(p); kp.y += 0.08;
+      const ladle = M.maggi.createLadle?.();
+      if (keeper) {
+        this.place(keeper, kp, yaw, { anim: true, near: 160, water: true });
+        try { keeper.setStation?.({ pot: [-0.05, 1.1, 0.45], counterY: 0.9, counterZ: 0.42 }); if (ladle) keeper.holdProp?.(ladle, 'right'); } catch (e) { console.warn('[maggi keeper]', e); }
+      }
+      const marker = createMaggiMarker(); marker.group.position.copy(p); this.scene.add(marker.group);
+      const potWorld = stall.potLocal.clone().applyAxisAngle(UP, yaw).add(p);
+      this.special.maggi.push({ kind: 'maggi', s, side, name, pos: p.clone(), yaw, stall, keeper, ladle, marker, potWorld, parkS: s + 1.2, parkD: side * (half + 0.35) });
+    });
+    // one "theka" style beer shop at the edge of the Kumaoni village
+    this.special.stops = [...this.special.maggi];
+    const { createBeerShop } = M.beer || {};
+    const { createStopMarker } = M.maggi || {};
+    if (createBeerShop && createStopMarker) {
+      const s = (T.marks.village || 3566) + 92; const side = this.uphillSide(s); const half = T.halfWidth(s);
+      const shop = tryCall(createBeerShop, { seed: 7 });
+      const p = this.pos(s, side * (half + 5.4)); const yaw = this.yawFaceRoad(s, side);
+      if (shop && this.place(shop, p, yaw, { reserve: 4.8 })) {
+        const keeper = tryCall(createPerson, { seed: 1777, gender: 'm', age: 'adult', pose: 'stand', detail: 'high' });
+        const kp = shop.keeperLocal.clone().applyAxisAngle(UP, yaw).add(p); kp.y += 0.08;
+        if (keeper) {
+          this.place(keeper, kp, yaw, { anim: true, near: 160, water: true });
+          try { keeper.setStation?.({ counterY: 0.94, counterZ: 0.6, serve: [0, 1.06, 0.62] }); } catch (e) { console.warn('[beer keeper]', e); }
+        }
+        const marker = createStopMarker({ icon: '🍺', label: 'BEER', color: '#ffb000', beam: 'rgba(255,170,40,' });
+        marker.group.position.copy(p); this.scene.add(marker.group);
+        const focusWorld = shop.windowLocal.clone().applyAxisAngle(UP, yaw).add(p); focusWorld.y -= 0.25;
+        const st = { kind: 'beer', s, side, name: 'BEER', pos: p.clone(), yaw, stall: shop, keeper, marker, focusWorld, parkS: s + 1.2, parkD: side * (half + 0.35) };
+        this.special.beer = st; this.special.stops.push(st);
+      }
+    }
+  }
+
   /** +1 if the right side of the road is uphill at s, else -1 */
   uphillSide(s) {
     const T = this.T; const half = T.halfWidth(s);
@@ -540,6 +587,7 @@ export class Populator {
 
   update(dt, time, camPos, raceTime, playerS, A) {
     this.updateTraffic(raceTime, dt, playerS, A);
+    for (const st of this.special.stops || this.special.maggi || []) if (st.marker.group.visible) st.marker.update(dt, time, camPos);
     this.cullT -= dt;
     if (this.cullT <= 0) { this.cullT = 0.3; for (const c of this.cull) { const v = c.o.position.distanceToSquared(camPos) < c.r * c.r; if (c.o.visible !== v) c.o.visible = v; } }
     for (const a of this.animated) {

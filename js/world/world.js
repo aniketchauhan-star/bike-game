@@ -61,6 +61,7 @@ export class World {
     await Promise.all([
       load('buildings', '../models/buildings.js'), load('props', '../models/props.js'), load('vehicles', '../models/vehicles.js'),
       load('animals', '../models/animals.js'), load('people', '../models/people.js'), load('veg', '../models/vegetation.js'),
+      load('maggi', '../models/maggi.js'), load('beer', '../models/beershop.js'),
     ]);
     this.M = M; lap('model modules');
     // props / buildings / animals / people / traffic

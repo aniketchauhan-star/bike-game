@@ -37,7 +37,7 @@ export class CameraRig {
     const yaw = racer.yaw, v = racer.v;
     const fx = Math.sin(yaw), fz = Math.cos(yaw);
     const base = v1.set(racer.x, racer.y, racer.z);
-    let fovT = 64 + smoothstep(15, 85, v) * 16;
+    let fovT = 64 + smoothstep(15, 85, v) * 10;
     if (this.mode === 'helmet') {
       // rider's eye: slightly behind the bars, low in a tuck
       const lean = racer.lean;
@@ -72,11 +72,12 @@ export class CameraRig {
     ty = Math.max(ty, gy + 0.7);
     if (!this.initialized) { this.pos.set(tx, ty, tz); this.look.copy(base); this.initialized = true; }
     // separate smoothing: tight longitudinal follow, softer lateral & vertical
-    const k = 1 - Math.exp(-dt * (far ? 6 : 8.5)), kv = 1 - Math.exp(-dt * 5);
+    const k = 1 - Math.exp(-dt * (far ? 8 : 12)), kv = 1 - Math.exp(-dt * 6);
     this.pos.x += (tx - this.pos.x) * k; this.pos.z += (tz - this.pos.z) * k; this.pos.y += (ty - this.pos.y) * kv;
     // keep a minimum distance (prevents the camera lagging into the bike at high decel)
     const dx = this.pos.x - base.x, dz = this.pos.z - base.z; const dd = Math.hypot(dx, dz);
     if (dd < dist * 0.75) { this.pos.x = base.x + dx / dd * dist * 0.75; this.pos.z = base.z + dz / dd * dist * 0.75; }
+    else if (dd > dist * 1.25 && racer.crashed <= 0) { this.pos.x = base.x + dx / dd * dist * 1.25; this.pos.z = base.z + dz / dd * dist * 1.25; } // never fall far behind at speed
     const lookAhead = 2.5 + v * 0.12;
     const lt = v3.set(base.x + fx * lookAhead, base.y + (far ? 1.1 : 1.0), base.z + fz * lookAhead);
     this.look.x = damp(this.look.x, lt.x, 14, dt); this.look.y = damp(this.look.y, lt.y, 9, dt); this.look.z = damp(this.look.z, lt.z, 14, dt);
@@ -88,6 +89,14 @@ export class CameraRig {
     cam.up.set(0, 1, 0); cam.lookAt(this.look);
     this.roll = damp(this.roll, racer.lean * (far ? 0.18 : 0.3), 5, dt);
     cam.rotateZ(-this.roll);
+    const dk = racer.drunkK || 0;
+    if (dk > 0) { // nasha: the whole view sways and breathes
+      const tt = performance.now() / 1000;
+      cam.rotateZ(Math.sin(tt * 1.1) * 0.07 * dk);
+      cam.rotateY(Math.sin(tt * 0.7 + 1) * 0.045 * dk);
+      cam.rotateX(Math.sin(tt * 0.9 + 2) * 0.02 * dk);
+      fovT += Math.sin(tt * 1.3) * 4 * dk;
+    }
     this.applyFov(fovT, dt);
   }
   applyFov(f, dt) { const c = this.cam; const n = damp(c.fov, f, 3, dt); if (Math.abs(n - c.fov) > 0.01) { c.fov = n; c.updateProjectionMatrix(); } }

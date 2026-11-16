@@ -70,6 +70,13 @@ export class Racer {
   // ------------------------------------------------------------------ physics
   step(dt, inp) {
     if (this.kind === 'remote') return;
+    if (this.drunkT > 0) { // GTA-style "nasha": slow, wandering steering
+      this.drunkT -= dt; this._dt = (this._dt || 0) + dt;
+      const k = this.drunkK = Math.min(1, this.drunkT / 4);
+      this.dSteer = (this.dSteer || 0) + (inp.steer - (this.dSteer || 0)) * Math.min(1, dt * 2.6);
+      const wander = (Math.sin(this._dt * 0.9) * 0.3 + Math.sin(this._dt * 2.3 + 1.7) * 0.12) * k;
+      inp = { ...inp, steer: clamp(lerp(inp.steer, this.dSteer, k) + wander, -1, 1), throttle: inp.throttle * (1 - 0.15 * k) };
+    } else this.drunkK = 0;
     const T = this.track, spec = this.spec;
     this.throttle = inp.throttle; this.brake = inp.brake; this.steer = inp.steer;
     if (this.ghost > 0) this.ghost -= dt;
@@ -116,6 +123,7 @@ export class Racer {
     const grip = surf === 'road' ? 1 : surf === 'shoulder' ? 0.85 : 0.6;
     const aBrake = this.air ? 0 : inp.brake * spec.brake * grip * (1 - Math.abs(this.lean) * 0.35) * (1 - 0.8 * this.driftAmt);
     // nitro
+    if (this.maggiPower > 0) { this.maggiPower -= dt; this.nitro = 1; }
     if (this.nitroLatch && (this.nitro <= 0 || inp.brake > 0.5)) this.nitroLatch = false;
     const wantNitro = inp.nitro || this.nitroLatch;
     if (wantNitro && this.nitro > 0.04 && !this.air && !this.boosting) { this.boosting = true; this.events.push('nitro'); }
@@ -301,7 +309,7 @@ export class Racer {
   }
   /** pushed by a kick toward `side` (+1 = to the right of travel) */
   onKicked(side, strength = 1) {
-    if (this.crashed > 0 || this.ghost > 0) return false;
+    if (this.crashed > 0 || this.ghost > 0 || this.inMaggi) return false;
     this.wobble = Math.min(1.2, this.wobble + 0.7 * strength); this.wobT = 0;
     this.lean += side * 0.22 * strength; this.v *= 0.93 - strength * 0.03;
     const h = this.track.heading(this.s); this.x += Math.cos(h) * side * 0.5; this.z += -Math.sin(h) * side * 0.5;

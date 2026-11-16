@@ -1136,7 +1136,7 @@ export function createRider(id = 'mayank') {
         // finger curls toward the palm side (−sx · X) and back up, wrapping the grip
         const pts = [];
         for (let k = 0; k <= 6; k++) { const a = k / 6 * 2.2 * len; const rr = 0.018 * s; pts.push(V(Wr.x - sx * rr * (1 - Math.cos(a)) * 1.1, Wr.y - 0.09 * s - rr * Math.sin(a), Wr.z + fz)); }
-        P.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 7, 0.0088 * w, 5), hg, C.glove, 0.62);
+        P.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 7, 0.0088 * w, 6), hg, C.glove, 0.62);
       }
       const thP = [V(Wr.x - sx * 0.01, Wr.y - 0.035 * s, Wr.z + 0.035 * w), V(Wr.x - sx * 0.024, Wr.y - 0.06 * s, Wr.z + 0.04 * w), V(Wr.x - sx * 0.03, Wr.y - 0.08 * s, Wr.z + 0.026 * w)];
       P.add(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(thP), 6, 0.0095 * w, 6), hg, C.glove, 0.62);
@@ -1235,17 +1235,19 @@ export function createRider(id = 'mayank') {
 
   // ---------------- state
   let pose = 'stand', helmetOn = false, lookTarget = null;
-  const st = { h: 0, tuck: 0, brake: 0, look: 0, t: Math.random() * 10, blinkT: 2 + Math.random() * 2, blink: 0, talk: 0, talkDur: 0, kickT: -1, kickSide: 1, fallBlend: 0, fallT: 0, saccade: V(0, 0, 0), saccT: 0 };
+  const st = { h: 0, tuck: 0, brake: 0, look: 0, t: Math.random() * 10, blinkT: 2 + Math.random() * 2, blink: 0, talk: 0, talkDur: 0, kickT: -1, kickSide: 1,
+    fallBlend: 0, fallT: 0, saccade: V(0, 0, 0), saccT: 0, sitK: 0, animJaw: 0, animLook: null, animBlink: 0, hs: { L: null, R: null } };
   const setGloves = (on) => { for (const sd of ['L', 'R']) { bones['hand' + sd + '_glove'].scale.setScalar(on ? 1 : 1e-4); bones['hand' + sd + '_bare'].scale.setScalar(on ? 1e-4 : 1); } };
   setGloves(false);
   const resetBones = () => { for (const b of boneList) b.quaternion.identity(); bones.pelvis.position.copy(R.pelvis); };
-  const tmpQ = new THREE.Quaternion(), tmpQ2 = new THREE.Quaternion(), gq = new THREE.Quaternion(), qLow = new THREE.Quaternion();
+  const tmpQ = new THREE.Quaternion(), tmpQ2 = new THREE.Quaternion(), gq = new THREE.Quaternion(), gqi = new THREE.Quaternion(), qLow = new THREE.Quaternion();
   const REST_F = V(0, -1, 0), REST_PL = V(-1, 0, 0), REST_PR = V(1, 0, 0);
   const PALM_L = V(-0.25, -0.95, 0.15).normalize(), PALM_R = V(0.25, -0.95, 0.15).normalize();
   const FOOT_L = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.45, 0.12, 0, 'YXZ')), FOOT_R = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.45, -0.12, 0, 'YXZ'));
   const toW = (v) => group.localToWorld(v.clone());
   const handDir = { L: V(0.05, -0.62, 0.78).normalize(), R: V(-0.05, -0.62, 0.78).normalize() };
   const eul = new THREE.Euler();
+  const upL = new THREE.Vector3();
 
   function poseStand(dt) {
     const t = st.t;
@@ -1277,47 +1279,290 @@ export function createRider(id = 'mayank') {
     return [wind, ext];
   }
 
-  function poseRide(dt, s2) {
+  // ---------------- helmet states: 'worn' (on head) | 'hidden' | 'resting' (on the tank) | 'held' (animated by hands)
+  const HELMET_WORN_POS = headOff.clone().add(V(0, -HELMET_CENTER, 0));
+  let helmetMode = 'hidden';
+  const TANK_REST = V(0, 0.998, 0.33), TANK_REST_Q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.06, 1.15, 0, 'YXZ'));
+  const restPos = TANK_REST.clone(), restQ = TANK_REST_Q.clone();
+  const _m4 = new THREE.Matrix4(), _gInv = new THREE.Matrix4(), _one = V(1, 1, 1), _sc = V(1, 1, 1), _qI = new THREE.Quaternion();
+  function attachHelmetToHead() { if (helmet.parent !== bones.head) bones.head.add(helmet); helmet.position.copy(HELMET_WORN_POS); helmet.quaternion.identity(); helmet.scale.set(1, 1, 1); }
+  function attachHelmetToGroup() { if (helmet.parent !== group) { group.updateMatrixWorld(true); group.attach(helmet); helmet.scale.set(1, 1, 1); } }
+  /** helmet transform when worn, expressed in group space (follows the head live) */
+  function wornTransform(outP, outQ) {
+    group.updateMatrixWorld(true); _gInv.copy(group.matrixWorld).invert();
+    _m4.compose(HELMET_WORN_POS, _qI, _one).premultiply(bones.head.matrixWorld).premultiply(_gInv);
+    _m4.decompose(outP, outQ, _sc);
+  }
+
+  // ---------------- props in hands (palm-centred sockets)
+  const sockL = new THREE.Object3D(); sockL.name = 'propSocketL'; sockL.position.set(-0.024 * w, -0.058 * s, 0.004); sockL.quaternion.setFromUnitVectors(V(0, 1, 0), V(-1, 0, 0)); bones.handL.add(sockL);
+  const sockR = new THREE.Object3D(); sockR.name = 'propSocketR'; sockR.position.set(0.016 * w, -0.088 * s, -0.036); sockR.quaternion.setFromUnitVectors(V(0, 1, 0), V(0, 0, 1)); bones.handR.add(sockR);
+  let propL = null, propR = null, propRGrip = 0.036, propRLen = 0.24;
+  const _bb = new THREE.Box3(), _bb2 = new THREE.Box3(), _mm = new THREE.Matrix4();
+  function propLocalBox(obj) {   // bounding box of a prop in its own local frame
+    _bb.makeEmpty(); obj.updateMatrix();
+    obj.traverse(m => {
+      if (!m.isMesh || !m.geometry) return; if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      _mm.identity(); for (let o = m; o && o !== obj; o = o.parent) { o.updateMatrix(); _mm.premultiply(o.matrix); }
+      _bb2.copy(m.geometry.boundingBox).applyMatrix4(_mm); _bb.union(_bb2);
+    });
+    return _bb;
+  }
+
+  // ---------------- scripted animations (Maggi break): helmetOff / eat / helmetOn
+  const ANIM_DUR = { helmetOff: 1.8, eat: 3.2, helmetOn: 1.5, drink: 3.0 };
+  const queue = []; let cur = null;
+  const ez = (t) => t * t * (3 - 2 * t);
+  const seg = (u, a, b) => ez(clamp((u - a) / (b - a), 0, 1));
+  const bell = (u, a, b) => { const m = (a + b) / 2; return u < m ? seg(u, a, m) : 1 - seg(u, m, b); };
+  const _p0 = V(0, 0, 0), _p1 = V(0, 0, 0), _q0 = new THREE.Quaternion(), _q1 = new THREE.Quaternion();
+  const PITCH_LIFT = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.22, 0, 0));
+  function startNext() { if (cur || !queue.length) return; cur = queue.shift(); cur.t = 0; animBegin(cur); }
+  function finishCur(cancel = false) { const c = cur; if (!c) return; cur = null; animEnd(c, cancel); st.animJaw = 0; st.animLook = null; st.animBlink = 0; c.resolve(!cancel); }
+  function animBegin(c) {
+    const rp = c.opts && c.opts.restPos;
+    if (rp && rp.z > 0.02) restPos.copy(rp); else restPos.copy(TANK_REST);     // seat positions are taken by the rider → use the tank
+    if (c.name === 'helmetOff') {
+      if (helmetMode !== 'worn' && helmetMode !== 'held') { attachHelmetToHead(); helmet.visible = true; headGroup.visible = false; helmetOn = true; }
+      if (helmetMode === 'resting') c.noop = true;
+      else { attachHelmetToGroup(); helmetMode = 'held'; helmet.visible = true; }
+    } else if (c.name === 'helmetOn') {
+      if (helmetMode === 'worn') c.noop = true;
+      else {
+        if (helmetMode !== 'resting') { attachHelmetToGroup(); helmet.position.copy(restPos); helmet.quaternion.copy(restQ); }
+        attachHelmetToGroup(); helmet.visible = true; helmetMode = 'held';
+      }
+    }
+  }
+  function animEnd(c) {
+    if (c.name === 'helmetOff' && !c.noop) { attachHelmetToGroup(); helmet.position.copy(restPos); helmet.quaternion.copy(restQ); helmet.visible = true; helmetMode = 'resting'; helmetOn = false; headGroup.visible = true; }
+    if (c.name === 'helmetOn' && !c.noop) { attachHelmetToHead(); helmet.visible = true; helmetMode = 'worn'; helmetOn = true; headGroup.visible = false; }
+  }
+  function eatCycle(u) {
+    const u0 = 0.10, L = 0.29; const c = (u - u0) / L; const ci = Math.floor(c); const f = c - ci;
+    if (c < 0 || ci > 2) return { toMouth: 0, f: 0, ci: -1, jawOpen: 0, scoop: 0, chew: u > 0.9 };
+    const toMouth = seg(f, 0.30, 0.52) * (1 - seg(f, 0.64, 0.88));
+    return { toMouth, f, ci, jawOpen: bell(f, 0.40, 0.64) * 0.55, scoop: f < 0.3 ? f / 0.3 : 0, chew: f > 0.64 || (ci > 0 && f < 0.3) };
+  }
+  function drinkPhase(u) {   // 3 sips: tilt up → hold (swallow) → lower toward the chest
+    const u0 = 0.08, L = 0.205; const cc = (u - u0) / L; const ci = Math.floor(cc); const f = cc - ci;
+    if (cc < 0 || ci > 2) return { sip: 0, hold: 0, holdT: 0, ci: clamp(ci, 0, 2), f: 0 };
+    return { sip: seg(f, 0.0, 0.32) * (1 - seg(f, 0.64, 0.95)), hold: seg(f, 0.30, 0.37) * (1 - seg(f, 0.57, 0.64)), holdT: clamp((f - 0.3) / 0.3, 0, 1), ci, f };
+  }
+  /** time-only torso/head offsets for the current animation */
+  function animTorso(c) {
+    const u = c.t / c.dur; const o = { spineX: 0, chestX: 0, neckX: 0, neckY: 0, headX: 0, headY: 0, headZ: 0 };
+    if (c.name === 'helmetOff' && !c.noop) {
+      const bow = seg(u, 0.22, 0.36) * (1 - seg(u, 0.5, 0.6)); o.headX += 0.16 * bow; o.neckX += 0.06 * bow;
+      const sh = bell(u, 0.54, 0.72); o.headY += 0.2 * Math.sin((u - 0.54) * 72) * sh; o.headZ += 0.05 * Math.sin((u - 0.54) * 56) * sh;
+      o.chestX -= 0.04 * seg(u, 0.3, 0.5) * (1 - seg(u, 0.85, 1));
+    } else if (c.name === 'helmetOn' && !c.noop) {
+      const bow = seg(u, 0.5, 0.66) * (1 - seg(u, 0.8, 0.95)); o.headX += 0.14 * bow; o.neckX += 0.05 * bow;
+    } else if (c.name === 'eat') {
+      const look = seg(u, 0.0, 0.12) * (1 - seg(u, 0.95, 1.0)); const cy = eatCycle(u); const up = cy.toMouth;
+      o.neckX += (0.13 - 0.07 * up) * look; o.headX += (0.24 - 0.16 * up) * look; o.chestX += 0.05 * look; o.spineX += 0.03 * look;
+      o.headY += -0.05 * up * look;
+    } else if (c.name === 'drink') {
+      const ph = drinkPhase(u);
+      o.headX -= 0.40 * ph.sip; o.neckX -= 0.16 * ph.sip; o.chestX -= 0.05 * ph.sip; o.spineX -= 0.02 * ph.sip;
+      o.headX += 0.05 * Math.sin(ph.holdT * Math.PI * 2) * ph.hold;                        // swallow bob
+      const wipe = bell(u, 0.72, 0.92); o.headY += 0.10 * wipe; o.headX += 0.04 * wipe;     // turn into the wipe
+      const br = bell(u, 0.85, 1.0); o.chestX += 0.07 * br; o.spineX += 0.04 * br; o.headX += 0.06 * br;   // satisfied exhale, shoulders drop
+    }
+    return o;
+  }
+  const _hp = { L: V(0, 0, 0), R: V(0, 0, 0) };
+  /** hand targets for the current animation, in group space: {w, pos (palm/fist centre), fd (finger dir), pn (palm normal), pole, fist} */
+  function animHands(c, out) {
+    const u = c.t / c.dur; out.L = null; out.R = null; st.animJaw = 0; st.animLook = null; st.animBlink = 0;
+    const seat = STANDARD_ANCHORS.seat;
+    if ((c.name === 'helmetOff' || c.name === 'helmetOn') && !c.noop) {
+      // helmet path
+      wornTransform(_p0, _q0);
+      const liftP = _p1.copy(_p0).add(V(0, 0.30, 0.035)); const liftQ = _q1.copy(_q0).multiply(PITCH_LIFT);
+      const mid = liftP.clone().add(restPos).multiplyScalar(0.5).add(V(0, 0.06, 0.12));
+      const bez = (a, b, cc, t) => a.clone().multiplyScalar((1 - t) * (1 - t)).addScaledVector(b, 2 * (1 - t) * t).addScaledVector(cc, t * t);
+      let P, Q = new THREE.Quaternion(); let hw, vis;
+      if (c.name === 'helmetOff') {
+        if (u < 0.28) { P = _p0.clone(); Q.copy(_q0); }
+        else if (u < 0.55) { const a = seg(u, 0.28, 0.55); P = _p0.clone().lerp(liftP, a); Q.slerpQuaternions(_q0, liftQ, a); }
+        else if (u < 0.62) { P = liftP.clone().add(V(0, 0, 0.02 * seg(u, 0.55, 0.62))); Q.copy(liftQ); }
+        else if (u < 0.9) { const a = seg(u, 0.62, 0.9); P = bez(liftP.clone().add(V(0, 0, 0.02)), mid, restPos, a); Q.slerpQuaternions(liftQ, restQ, a); }
+        else { P = restPos.clone(); Q.copy(restQ); }
+        hw = seg(u, 0.02, 0.2) * (1 - seg(u, 0.88, 0.98)); vis = u >= 0.36;
+      } else {
+        if (u < 0.2) { P = restPos.clone(); Q.copy(restQ); }
+        else if (u < 0.55) { const a = seg(u, 0.2, 0.55); P = bez(restPos, mid, liftP, a); Q.slerpQuaternions(restQ, liftQ, a); }
+        else if (u < 0.8) { const a = seg(u, 0.55, 0.8); P = liftP.clone().lerp(_p0, a); Q.slerpQuaternions(liftQ, _q0, a); }
+        else { P = _p0.clone(); Q.copy(_q0); }
+        hw = seg(u, 0.0, 0.18) * (1 - seg(u, 0.8, 0.92)); vis = u < 0.72;
+      }
+      helmet.position.copy(P); helmet.quaternion.copy(Q);
+      headGroup.visible = vis;
+      for (const [sd, sx] of [['L', 1], ['R', -1]]) {
+        const pos = V(sx * 0.137, 0.085, 0.012).applyQuaternion(Q).add(P);
+        const fd = V(0, 1, 0.12).normalize().applyQuaternion(Q); const pn = V(-sx, 0, 0).applyQuaternion(Q);
+        out[sd] = { w: hw, pos, fd, pn, pole: V(sx * 0.95, 1.55, -0.15), fist: false };
+      }
+      if (c.name === 'helmetOn') {   // fasten the strap under the chin with the right hand (blends out of the helmet hold)
+        const sw = bell(u, 0.8, 0.97);
+        if (sw > 0.001) {
+          const H = out.R, k2 = sw / (sw + hw + 1e-6);
+          const pos = V(-0.025, 0.035, 0.105).applyQuaternion(Q).add(P);
+          out.R = { w: Math.max(hw, sw), pos: H.pos.clone().lerp(pos, k2), fd: H.fd.clone().lerp(V(0.2, 1, 0.3).normalize(), k2).normalize(), pn: H.pn.clone().lerp(V(0.6, 0, -0.8).normalize(), k2).normalize(), pole: H.pole.clone().lerp(V(-0.7, 1.1, -0.2), k2), fist: false };
+        }
+      }
+    } else if (c.name === 'eat') {
+      const wIn = seg(u, 0.0, 0.1) * (1 - seg(u, 0.9, 1.0));
+      const bowl = V(0.05, seat.y + 0.29 * s + 0.005 * Math.sin(c.t * 3), seat.z + 0.255 * s);
+      out.L = { w: wIn, pos: bowl.clone(), fd: V(-0.35, -0.08, 1).normalize(), pn: V(0, 1, 0), pole: V(0.75, 0.95, -0.35), fist: false };
+      // mouth position (group space)
+      const mouth = headGroup.localToWorld(V(0, mouthY(0, sp.face) * sp.face.len, 0.101)); group.worldToLocal(mouth);
+      const cy = eatCycle(u);
+      const sc = cy.scoop; const bowlTip = bowl.clone().add(V(0.018 * Math.cos(sc * 6.283), 0.045, 0.018 * Math.sin(sc * 6.283) - 0.01));
+      const handAtMouth = mouth.clone().add(V(-0.03, -0.075, 0.135));
+      const Fm = mouth.clone().sub(handAtMouth).normalize(), Fb = V(0.12, -0.85, 0.35).normalize();
+      const tip = bowlTip.clone().lerp(mouth.clone().add(V(0, 0, 0.008)), cy.toMouth);
+      const F = Fb.clone().lerp(Fm, cy.toMouth).normalize();
+      const fist = tip.clone().addScaledVector(F, -0.145);
+      let pn = V(0.35, 0.85, 0.1).lerp(V(0.55, 0.7, -0.3), cy.toMouth).normalize();
+      const fd = new THREE.Vector3().crossVectors(pn, F).normalize(); pn = new THREE.Vector3().crossVectors(F, fd).normalize();
+      out.R = { w: seg(u, 0.02, 0.12) * (1 - seg(u, 0.9, 1.0)), pos: fist, fd, pn, pole: V(-0.85, 0.9, -0.3), fist: true };
+      const chew = cy.chew ? Math.max(0, 0.12 + 0.13 * Math.sin(c.t * 15)) : 0;
+      st.animJaw = Math.max(cy.jawOpen, chew);
+      st.animLook = group.localToWorld(cy.toMouth > 0.5 ? tip.clone() : bowl.clone().add(V(0, 0.03, 0)));
+    } else if (c.name === 'drink') {
+      const ph = drinkPhase(u);
+      const mouth = headGroup.localToWorld(V(0, mouthY(0, sp.face) * sp.face.len, 0.101)); group.worldToLocal(mouth);
+      const grip = propRGrip;                                            // bottle base → fist centre
+      const theta = lerp(0.95, 1.15, clamp(ph.ci / 2, 0, 1));            // base-up tilt 54° → 66° as it empties
+      const BL = propRLen;                                                // bottle length (base → neck tip)
+      const holdNeck = mouth.clone().add(V(-0.03, -0.17, 0.10)), holdF = V(0.08, 1, -0.25).normalize();   // between sips: in front of the chest
+      const sipNeck = mouth.clone().add(V(-0.004, 0.003, 0.012));
+      const sipF = V(0.035, -Math.sin(theta), -Math.cos(theta)).normalize();      // base up, neck to the lips
+      const neck = holdNeck.clone().lerp(sipNeck, ph.sip), F = holdF.clone().lerp(sipF, ph.sip).normalize();
+      const base = neck.clone().addScaledVector(F, -BL);
+      const fist = base.clone().addScaledVector(F, grip);
+      let pn = V(1, 0.15, 0.2).normalize(); pn.addScaledVector(F, -pn.dot(F)).normalize();
+      const fd = new THREE.Vector3().crossVectors(pn, F).normalize(); pn = new THREE.Vector3().crossVectors(F, fd).normalize();
+      out.R = { w: seg(u, 0.0, 0.07) * (1 - seg(u, 0.70, 0.80)), pos: fist, fd, pn, pole: V(-0.8, 0.85, -0.25), fist: true };
+      const ww = bell(u, 0.72, 0.92);                                     // back of the left hand wipes the mouth
+      if (ww > 0.001) {
+        const a = seg(u, 0.76, 0.88); const pos = mouth.clone().add(V(0.068, -0.003, 0.026).lerp(V(-0.004, 0.008, 0.026), a));
+        const fdL = V(-1, -0.25, 0.1).normalize(); const pnL = V(0, 0.12, 1).normalize(); pnL.addScaledVector(fdL, -pnL.dot(fdL)).normalize();
+        out.L = { w: ww, pos, fd: fdL, pn: pnL, pole: V(0.75, 0.85, 0.15), fist: false };
+      }
+      st.animJaw = 0.12 * ph.hold + 0.16 * bell(u, 0.86, 0.99);
+      st.animBlink = 0.55 * ph.hold;
+      st.animLook = group.localToWorld(ph.sip > 0.3 ? base.clone() : neck.clone());
+    }
+    return out;
+  }
+  const _animOut = { L: null, R: null };
+  /** Hand target filter: the rest target is low-passed, the scripted animation path is followed exactly,
+   *  and the animation weight is rate-limited (so cancels / prop swaps never pop, and fast gestures never lag). */
+  function smoothHand(sd, restT, at, dt) {
+    const mk = (t) => ({ pos: t.pos.clone(), fd: t.fd.clone(), pn: t.pn.clone(), pole: t.pole.clone(), fist: t.fist ? 1 : 0 });
+    let h = st.hs[sd];
+    if (!h) h = st.hs[sd] = { rest: mk(restT), anim: null, w: 0, out: mk(restT) };
+    const ar = 1 - Math.exp(-dt * 9), R0 = h.rest;
+    R0.pos.lerp(restT.pos, ar); R0.fd.lerp(restT.fd, ar).normalize(); R0.pn.lerp(restT.pn, ar).normalize(); R0.pole.lerp(restT.pole, ar); R0.fist = lerp(R0.fist, restT.fist ? 1 : 0, ar);
+    if (at) { if (!h.anim) h.anim = mk(at); else { const A = h.anim; A.pos.copy(at.pos); A.fd.copy(at.fd); A.pn.copy(at.pn); A.pole.copy(at.pole); A.fist = at.fist ? 1 : 0; } }
+    const wt = at ? at.w : 0, step = 9 * Math.max(dt, 1e-3);
+    h.w += clamp(wt - h.w, -step, step);
+    const o = h.out;
+    if (!h.anim || h.w <= 1e-4) { if (!at) h.anim = null; h.w = Math.max(0, h.w); o.pos.copy(R0.pos); o.fd.copy(R0.fd); o.pn.copy(R0.pn); o.pole.copy(R0.pole); o.fist = R0.fist; return o; }
+    const A = h.anim, w = h.w;
+    o.pos.copy(R0.pos).lerp(A.pos, w); o.fd.copy(R0.fd).lerp(A.fd, w).normalize(); o.pn.copy(R0.pn).lerp(A.pn, w).normalize(); o.pole.copy(R0.pole).lerp(A.pole, w); o.fist = lerp(R0.fist, A.fist, w);
+    return o;
+  }
+
+  /** riding & sitting-on-the-bike (blended by st.sitK) */
+  function poseBike(dt, s2) {
     const lean = s2.lean || 0, speed = Math.abs(s2.speed || 0), brake = clamp(s2.brake || 0, 0, 1), steer = s2.steer || 0;
-    st.h = damp(st.h, clamp(lean / 0.85, -1, 1), 5, dt);
-    st.tuck = damp(st.tuck, smoothstep(10, 45, speed) * (1 - 0.85 * brake), 3, dt);
-    st.brake = damp(st.brake, brake, 6, dt);
+    st.sitK = damp(st.sitK, pose === 'sitBike' ? 1 : 0, 8, dt);
+    const k = st.sitK, kr = 1 - k;
+    st.h = damp(st.h, clamp(lean / 0.85, -1, 1) * kr, 5, dt);
+    st.tuck = damp(st.tuck, smoothstep(10, 45, speed) * (1 - 0.85 * brake) * kr, 3, dt);
+    st.brake = damp(st.brake, brake * kr, 6, dt);
     const h = st.h, tk = st.tuck, br = st.brake;
-    const [kw, ke] = kickEnv(); const kx = -st.kickSide; const kk = Math.max(kw * 0.5, ke);   // kx: X-direction of the kick
+    const [kw, ke] = kickEnv(); const kx = -st.kickSide; const kk = Math.max(kw * 0.5, ke) * kr;
+    group.updateMatrixWorld(true); group.getWorldQuaternion(gq); gqi.copy(gq).invert();
+    upL.set(0, 1, 0).applyQuaternion(gqi);                       // world up in rider space (parked side-stand lean)
+    const roll = Math.atan2(-upL.x, upL.y);
+    const A = cur && pose === 'sitBike' ? animTorso(cur) : null;
+    const t = st.t; const breath = Math.sin(t * 1.5);
+    const idleLook = k > 0.5 && !cur ? clamp(Math.sin(t * 0.23) * 0.5 + Math.sin(t * 0.57 + 1.1) * 0.25, -0.5, 0.5) : 0;
+    st.look = damp(st.look, idleLook, 2.2, dt);
     resetBones();
     const seat = STANDARD_ANCHORS.seat;
-    bones.pelvis.position.set(-0.075 * h - kx * 0.035 * kk, seat.y + 0.105 * s - 0.012 * tk + 0.01 * kk, seat.z - 0.02 - 0.015 * tk);
-    bones.pelvis.rotation.set(0.30 + 0.05 * tk - 0.06 * br - 0.08 * kk, -0.18 * h + kx * 0.12 * kk, 0.12 * h + kx * 0.10 * kk, 'XYZ');
-    bones.spine.rotation.set(0.26 + 0.18 * tk - 0.18 * br - 0.08 * kk, -0.06 * h + 0.03 * steer, 0.12 * h + kx * 0.14 * kk);
-    bones.chest.rotation.set(0.22 + 0.15 * tk - 0.14 * br, -0.05 * h + 0.04 * steer - kx * 0.10 * kk, 0.10 * h + kx * 0.16 * kk);
-    bones.neck.rotation.set(-0.30 - 0.12 * tk + 0.12 * br + 0.06 * kk, -0.08 * h + kx * 0.25 * kk, -0.06 * h - kx * 0.08 * kk);
-    bones.head.rotation.set(-0.36 - 0.16 * tk + 0.14 * br + 0.05 * kk, -0.18 * h + kx * 0.35 * kk, -0.30 * h - kx * 0.10 * kk);
+    const footSide = 0.03 + (sp.H < 1.6 ? 0.015 : 0);
+    const L = (a, b) => lerp(a, b, k);
+    bones.pelvis.position.set(L(-0.075 * h - kx * 0.035 * kk, footSide), L(seat.y + 0.105 * s - 0.012 * tk + 0.01 * kk, seat.y + 0.112 * s), L(seat.z - 0.02 - 0.015 * tk, seat.z - 0.03));
+    bones.pelvis.rotation.set(L(0.30 + 0.05 * tk - 0.06 * br - 0.08 * kk, 0.06), L(-0.18 * h + kx * 0.12 * kk, 0.04 * st.look), L(0.12 * h + kx * 0.10 * kk, roll * 0.25), 'XYZ');
+    bones.spine.rotation.set(L(0.26 + 0.18 * tk - 0.18 * br - 0.08 * kk, -0.04 + 0.006 * breath + (A ? A.spineX : 0)), L(-0.06 * h + 0.03 * steer, 0.06 * st.look), L(0.12 * h + kx * 0.14 * kk, roll * 0.38));
+    bones.chest.rotation.set(L(0.22 + 0.15 * tk - 0.14 * br, -0.03 + 0.012 * breath + (A ? A.chestX : 0)), L(-0.05 * h + 0.04 * steer - kx * 0.10 * kk, 0.1 * st.look), L(0.10 * h + kx * 0.16 * kk, roll * 0.37));
+    bones.neck.rotation.set(L(-0.30 - 0.12 * tk + 0.12 * br + 0.06 * kk, 0.06 + (A ? A.neckX : 0)), L(-0.08 * h + kx * 0.25 * kk, 0.3 * st.look + (A ? A.neckY : 0)), L(-0.06 * h - kx * 0.08 * kk, -roll * 0.05));
+    bones.head.rotation.set(L(-0.36 - 0.16 * tk + 0.14 * br + 0.05 * kk, 0.0 + (A ? A.headX : 0)), L(-0.18 * h + kx * 0.35 * kk, 0.5 * st.look + (A ? A.headY : 0)), L(-0.30 * h - kx * 0.10 * kk, A ? A.headZ : 0));
     group.updateMatrixWorld(true);
-    group.getWorldQuaternion(gq);
-    for (const [sd, sx] of [['L', 1], ['R', -1]]) {
-      const grip = sx > 0 ? STANDARD_ANCHORS.gripL : STANDARD_ANCHORS.gripR;
-      const wrist = grip.clone().add(V(-sx * 0.012, 0.035, -0.05));
-      const pole = V(sx * 0.65, 0.70, 0.05);
-      const qL = solveTwoBone(IK['arm' + sd], toW(wrist), toW(pole), qLow);
-      frameQuat(REST_F, sx > 0 ? REST_PL : REST_PR, handDir[sd], sx > 0 ? PALM_L : PALM_R, tmpQ2); tmpQ.copy(gq).multiply(tmpQ2);
-      bones['hand' + sd].quaternion.copy(qL.invert().multiply(tmpQ));
-    }
+    // ---- legs: ride (pegs / kick) vs sit (left foot down on the ground, right foot on the peg)
+    const groundY = (x, z) => -(upL.x * x + upL.z * z) / Math.max(0.2, upL.y);
     for (const [sd, sx] of [['L', 1], ['R', -1]]) {
       const peg = sx > 0 ? STANDARD_ANCHORS.pegL : STANDARD_ANCHORS.pegR;
       let ankle = peg.clone().add(V(sx * 0.006, 0.066, -0.09));
       const insideAmt = Math.max(0, -sx * h);
       let pole = V(sx * (0.38 + 0.55 * insideAmt), 0.62 - 0.1 * insideAmt, 0.55);
       let footQ = sx > 0 ? FOOT_L : FOOT_R;
-      const kicking = st.kickT >= 0 && sx === kx;
-      if (kicking) {
+      if (st.kickT >= 0 && sx === kx && kr > 0.5) {
         const wind = V(kx * 0.34, 0.66, -0.06), ext = V(kx * 0.90, 0.60, -0.24);
         ankle = ankle.lerp(wind, kw).lerp(ext, ke);
         pole = pole.lerp(V(kx * 0.45, 1.25, 0.45), Math.max(kw, ke));
-        eul.set(0.45 * (1 - ke) + 0.1 * ke, 0, kx * 1.25 * ke, 'YXZ'); tmpQ2.setFromEuler(eul); footQ = tmpQ2.clone();
+        eul.set(0.45 * (1 - ke) + 0.1 * ke, 0, kx * 1.25 * ke, 'YXZ'); footQ = new THREE.Quaternion().setFromEuler(eul);
       }
+      if (k > 0.001 && sx > 0) {
+        const gx = 0.30, gz = -0.09; const gAnkle = V(gx, groundY(gx, gz) + 0.082, gz);
+        const hipW = bones['thigh' + sd].getWorldPosition(V(0, 0, 0)); const hipL = group.worldToLocal(hipW.clone());
+        const legLen = IK['leg' + sd].lenU + IK['leg' + sd].lenL; const deficit = Math.max(0, hipL.distanceTo(gAnkle) - legLen);
+        ankle.lerp(gAnkle, k); pole.lerp(V(0.62, 0.7, 0.5), k);
+        const gq2 = new THREE.Quaternion().setFromUnitVectors(V(0, 1, 0), upL.clone().normalize());
+        const toe = new THREE.Quaternion().setFromEuler(new THREE.Euler(lerp(0.05, 0.85, smoothstep(0.0, 0.06, deficit)), 0.28, 0, 'YXZ'));
+        footQ = footQ.clone().slerp(gq2.multiply(toe), k);
+      } else if (k > 0.001) { pole.lerp(V(-0.5, 0.65, 0.5), k); footQ = footQ.clone().slerp(new THREE.Quaternion().setFromEuler(new THREE.Euler(0.35, -0.2, 0, 'YXZ')), k); }
       const qL = solveTwoBone(IK['leg' + sd], toW(ankle), toW(pole), qLow);
       tmpQ.copy(gq).multiply(footQ);
       bones['foot' + sd].quaternion.copy(qL.invert().multiply(tmpQ));
+    }
+    group.updateMatrixWorld(true);
+    // ---- arms: ride (grips) vs sit (hands resting on thighs, or animation targets)
+    const anim = cur && pose === 'sitBike' ? animHands(cur, _animOut) : null;
+    for (const [sd, sx] of [['L', 1], ['R', -1]]) {
+      const grip = sx > 0 ? STANDARD_ANCHORS.gripL : STANDARD_ANCHORS.gripR;
+      const rideWrist = grip.clone().add(V(-sx * 0.012, 0.035, -0.05));
+      const ridePole = V(sx * 0.65, 0.70, 0.05);
+      let wrist = rideWrist, pole = ridePole;
+      tmpQ2.copy(frameQuat(REST_F, sx > 0 ? REST_PL : REST_PR, handDir[sd], sx > 0 ? PALM_L : PALM_R, new THREE.Quaternion()));
+      if (k > 0.001) {
+        // resting target on the thigh
+        const hipW = bones['thigh' + sd].getWorldPosition(V(0, 0, 0)), kneeW = bones['shin' + sd].getWorldPosition(V(0, 0, 0));
+        const hipL = group.worldToLocal(hipW), kneeL = group.worldToLocal(kneeW);
+        let restT = { pos: hipL.clone().lerp(kneeL, 0.62).addScaledVector(upL, 0.058).add(V(-sx * 0.012, 0, 0)), fd: kneeL.clone().sub(hipL).normalize().addScaledVector(upL, -0.35).normalize(), pn: upL.clone().negate(), pole: V(sx * 0.75, 0.95, -0.35), fist: false };
+        if (sx < 0 && propR && propRGrip > 0.05) {   // bottle stands upright on the right thigh
+          const baseP = hipL.clone().lerp(kneeL, 0.7).addScaledVector(upL, 0.045).add(V(-0.025, 0, 0)); const F = upL.clone().normalize();
+          let pn = V(1, 0.1, 0.25).normalize(); pn.addScaledVector(F, -pn.dot(F)).normalize(); const fd = new THREE.Vector3().crossVectors(pn, F).normalize();
+          restT = { pos: baseP.addScaledVector(F, propRGrip), fd, pn: new THREE.Vector3().crossVectors(F, fd).normalize(), pole: V(-0.75, 0.9, -0.3), fist: true };
+        }
+        const at = anim && anim[sd];
+        const hsm = smoothHand(sd, restT, at, dt);
+        const fdv = hsm.fd.clone(); const pnv = hsm.pn.clone().addScaledVector(fdv, -hsm.pn.dot(fdv)).normalize();
+        const off = lerp(0.056, 0.09, hsm.fist) * s;
+        const sitWrist = hsm.pos.clone().addScaledVector(fdv, -off).addScaledVector(pnv, -0.018);
+        wrist = rideWrist.clone().lerp(sitWrist, k); pole = ridePole.clone().lerp(hsm.pole, k);
+        const qSit = frameQuat(REST_F, sx > 0 ? REST_PL : REST_PR, fdv, pnv, new THREE.Quaternion());
+        tmpQ2.slerp(qSit, k);
+      } else st.hs[sd] = null;
+      const qL = solveTwoBone(IK['arm' + sd], toW(wrist), toW(pole), qLow);
+      tmpQ.copy(gq).multiply(tmpQ2);
+      bones['hand' + sd].quaternion.copy(qL.invert().multiply(tmpQ));
     }
   }
 
@@ -1349,38 +1594,45 @@ export function createRider(id = 'mayank') {
     }
   }
 
-  // face life: blink, eye gaze, talking jaw
-  const _lt = new THREE.Vector3(), _lq = new THREE.Quaternion(), _im = new THREE.Matrix4();
+  // face life: blink, eye gaze, talking/chewing jaw
+  const _lt = new THREE.Vector3(), _im = new THREE.Matrix4();
   function faceUpdate(dt) {
-    // blink
     st.blinkT -= dt;
     if (st.blinkT <= 0) { st.blink = 0.16; st.blinkT = 2.4 + Math.random() * 3.2; }
     let bl = 0; if (st.blink > 0) { st.blink -= dt; const u = 1 - st.blink / 0.16; bl = u < 0.45 ? u / 0.45 : Math.max(0, 1 - (u - 0.45) / 0.55); }
     if (st.kickT >= 0) bl = Math.max(bl, 0.35);
+    bl = Math.max(bl, st.animBlink || 0);
     if (pose === 'fall') bl = Math.max(bl, 0.5 + 0.5 * st.fallBlend);
     headMesh.morphTargetInfluences[1] = bl; browMesh.morphTargetInfluences[0] = bl;
-    // talking jaw
-    let jaw = 0;
-    if (st.talk > 0) { const el = st.talkDur - st.talk; const env = smoothstep(0, 0.12, el) * smoothstep(0, 0.18, st.talk); jaw = env * (0.25 + 0.75 * Math.abs(Math.sin(el * 11.5)) * (0.55 + 0.45 * Math.sin(el * 3.7 + 1))); }
+    let jaw = st.animJaw || 0;
+    if (st.talk > 0) { const el = st.talkDur - st.talk; const env = smoothstep(0, 0.12, el) * smoothstep(0, 0.18, st.talk); jaw = Math.max(jaw, env * (0.25 + 0.75 * Math.abs(Math.sin(el * 11.5)) * (0.55 + 0.45 * Math.sin(el * 3.7 + 1)))); }
     if (pose === 'fall' && st.fallBlend < 0.5) jaw = Math.max(jaw, 0.35 + 0.3 * Math.sin(st.fallT * 9));
     headMesh.morphTargetInfluences[0] = jaw;
-    // eye gaze (toward lookTarget, with tiny saccades)
     st.saccT -= dt; if (st.saccT <= 0) { st.saccT = 0.4 + Math.random() * 1.6; st.saccade.set((Math.random() - 0.5) * 0.12, (Math.random() - 0.5) * 0.06, 0); }
     let yaw = st.saccade.x, pitch = st.saccade.y;
-    if (lookTarget) {
+    const lt = st.animLook || lookTarget;
+    if (lt) {
       headGroup.updateWorldMatrix(true, false); _im.copy(headGroup.matrixWorld).invert();
-      _lt.copy(lookTarget).applyMatrix4(_im).sub(eyes[0].position.clone().add(eyes[1].position).multiplyScalar(0.5));
-      yaw = clamp(Math.atan2(_lt.x, Math.max(1e-3, _lt.z)), -0.45, 0.45) + st.saccade.x * 0.3; pitch = clamp(Math.atan2(_lt.y, Math.hypot(_lt.x, _lt.z)), -0.3, 0.3) + st.saccade.y * 0.3;
+      _lt.copy(lt).applyMatrix4(_im).sub(eyes[0].position.clone().add(eyes[1].position).multiplyScalar(0.5));
+      yaw = clamp(Math.atan2(_lt.x, Math.max(1e-3, _lt.z)), -0.45, 0.45) + st.saccade.x * 0.3; pitch = clamp(Math.atan2(_lt.y, Math.hypot(_lt.x, _lt.z)), -0.35, 0.3) + st.saccade.y * 0.3;
     }
     for (const e of eyes) { e.rotation.set(-pitch, yaw, 0, 'YXZ'); }
   }
 
   const rider = {
     id, group, info: RIDER_INFO[id], bones, headAnchor, height: sp.H, helmet,
+    /** default resting place for the helmet on the tank (rider/bike-local) */
+    tankRest: TANK_REST.clone(),
     get pose() { return pose; },
-    /** 'stand' | 'ride' | 'fall'. 'fall' keeps the body where it is but moves the group origin to the pelvis (good tumbling pivot). */
+    get helmetState() { return helmetMode; },
+    get isAnimating() { return !!cur || queue.length > 0; },
+    /** name of the running scripted animation (or null) */
+    get currentAnimation() { return cur ? cur.name : null; },
+    /** 'stand' | 'ride' | 'sitBike' | 'fall'. ride⇄sitBike blend over ≈0.4 s. 'fall' moves the group origin to the pelvis (tumbling pivot). */
     setPose(p) {
-      const next = p === 'ride' ? 'ride' : p === 'fall' ? 'fall' : 'stand';
+      const next = p === 'ride' ? 'ride' : p === 'fall' ? 'fall' : p === 'sitBike' ? 'sitBike' : 'stand';
+      if (next !== 'sitBike') { while (cur) finishCur(true); queue.splice(0).forEach(q => q.resolve(false)); }
+      if (next === 'ride' && helmetMode === 'resting') rider.setHelmet(true);
       if (next === 'fall' && pose !== 'fall') {
         group.updateMatrixWorld(true);
         const before = bones.pelvis.getWorldPosition(new THREE.Vector3());
@@ -1393,12 +1645,45 @@ export function createRider(id = 'mayank') {
         group.position.add(delta);
         return;
       }
-      if (next === 'ride' && pose === 'fall') { group.position.set(0, 0, 0); group.quaternion.identity(); }
+      if ((next === 'ride' || next === 'sitBike') && pose === 'fall') { group.position.set(0, 0, 0); group.quaternion.identity(); }
+      if (next === 'sitBike' && pose !== 'ride' && pose !== 'sitBike') st.sitK = 1;
+      if (next === 'ride' && pose !== 'sitBike') st.sitK = 0;
       pose = next; st.kickT = -1;
       setGloves(pose !== 'stand');
       rider.update(0, 0, {});
     },
-    setHelmet(on) { helmetOn = !!on; helmet.visible = helmetOn; headGroup.visible = !helmetOn; },
+    setHelmet(on) {
+      if (cur && (cur.name === 'helmetOff' || cur.name === 'helmetOn')) finishCur(true);
+      if (on) { attachHelmetToHead(); helmet.visible = true; helmetMode = 'worn'; helmetOn = true; headGroup.visible = false; }
+      else { if (helmetMode !== 'resting') { attachHelmetToHead(); helmet.visible = false; helmetMode = 'hidden'; } helmetOn = false; headGroup.visible = true; }
+    },
+    /** Attach props to the hands. left: bowl-like (origin at base centre, +Y out of the palm). right: +Y through the fist toward the thumb (fork: handle→tip; bottle: base→neck).
+     *  Thick right props (bottle/can) are gripped ~36% up from their base automatically; override with { rightGrip: metres from origin to fist }. null removes. */
+    holdProps(p) {
+      const set = (sock, cur0, obj) => { if (cur0 && cur0 !== obj) sock.remove(cur0); if (obj) sock.add(obj); return obj || null; };
+      if (!p) { propL = set(sockL, propL, null); propR = set(sockR, propR, null); propRGrip = 0.036; return; }
+      if ('left' in p) { propL = set(sockL, propL, p.left); if (propL) propL.position.set(0, 0, 0); }
+      if ('right' in p) {
+        propR = set(sockR, propR, p.right);
+        if (propR) {
+          // grip = distance from the prop origin (base / handle end) to the fist centre along +Y
+          let grip = p.rightGrip;
+          const b = propLocalBox(propR); const wdt = Math.max(b.max.x - b.min.x, b.max.z - b.min.z), hgt = b.max.y - b.min.y;
+          if (isFinite(hgt) && hgt > 0.02) propRLen = b.max.y;
+          if (grip == null) grip = wdt > 0.04 ? b.min.y + 0.36 * hgt : 0.036;
+          propRGrip = grip; propR.position.set(0, 0.036 - grip, 0);
+        } else propRGrip = 0.036;
+      }
+    },
+    /** Scripted animation while sitting on the parked bike: 'helmetOff' | 'eat' | 'helmetOn' | 'drink'. Queued (call back to back). Resolves true when done (false if cancelled). */
+    animate(name, duration, opts = {}) {
+      return new Promise((resolve) => {
+        if (!ANIM_DUR[name]) { resolve(false); return; }
+        if (pose !== 'sitBike') rider.setPose('sitBike');
+        queue.push({ name, dur: Math.max(0.3, duration || ANIM_DUR[name]), opts: opts || {}, resolve, t: 0 });
+        startNext();
+      });
+    },
     /** Road-Rash style side kick while riding. side +1 = kick to rider's right (−X), −1 = left (+X). Returns duration (s). */
     kick(side = 1) { if (pose !== 'ride') return 0; if (st.kickT >= 0 && st.kickT < KICK_DUR * 0.7) return KICK_DUR - st.kickT; st.kickSide = side >= 0 ? 1 : -1; st.kickT = 0; return KICK_DUR; },
     get isKicking() { return st.kickT >= 0; },
@@ -1410,12 +1695,13 @@ export function createRider(id = 'mayank') {
     update(dt, time, s2 = {}) {
       st.t += dt;
       if (st.kickT >= 0) { st.kickT += dt; if (st.kickT >= KICK_DUR) st.kickT = -1; }
-      if (pose === 'ride') poseRide(dt, s2); else if (pose === 'fall') poseFall(dt, s2); else poseStand(dt);
-      if (st.talk > 0) {   // talking head motion (also with helmet on)
+      if (cur) { cur.t += dt; if (cur.t >= cur.dur) { finishCur(); startNext(); } }
+      if (pose === 'ride' || pose === 'sitBike') poseBike(dt, s2); else if (pose === 'fall') poseFall(dt, s2); else poseStand(dt);
+      if (st.talk > 0) {
         st.talk = Math.max(0, st.talk - dt); const el = st.talkDur - st.talk; const env = smoothstep(0, 0.12, el) * smoothstep(0, 0.18, st.talk);
         bones.head.rotation.x += 0.03 * Math.sin(el * 6.5) * env; bones.head.rotation.y += 0.02 * Math.sin(el * 2.3) * env; bones.head.rotation.z += 0.015 * Math.sin(el * 4.1) * env;
       }
-      if (!helmetOn) faceUpdate(dt);
+      if (headGroup.visible) faceUpdate(dt);
     },
     dispose() { bodyGeo.dispose(); bodyMat.dispose(); faceMat.dispose(); hairMat.dispose(); browMat.dispose(); eyeMat.dispose(); },
   };

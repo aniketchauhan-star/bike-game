@@ -103,7 +103,7 @@ export class Atmosphere {
 
   setViewDistance(far) {
     this.viewFar = far;
-    this.fog.density = Math.sqrt(-Math.log(0.035)) / far;
+    this.fog.density = Math.sqrt(-Math.log(0.075)) / far; // a little clearer air (Himalayan views!)
   }
 
   setTimeOfDay(id) {

@@ -70,6 +70,7 @@ export class Radar {
     this.icons = [];
     icon(m.busStand + 18, '🚌', 18); icon(m.forestGate, '🐅', 0); icon(m.dhaba1, '☕', -10); icon(m.waterfall, '💧', -12); icon(m.village, '🏡', 25); icon(m.dhaba2, '☕', 8); icon(m.church, '⛪', 18);
     if (w.pop?.special?.garjiya) this.icons.push({ x: w.pop.special.garjiya.x, z: w.pop.special.garjiya.z, e: '🛕' });
+    for (const st of w.pop?.special?.stops || w.pop?.special?.maggi || []) this.icons.push({ x: st.pos.x, z: st.pos.z, e: st.kind === 'beer' ? '🍺' : '🍜' });
     this.startP = T.point(T.startS, 0); this.finishP = T.point(T.finishS, 0);
   }
 

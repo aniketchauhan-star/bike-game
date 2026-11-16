@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Settings, QUALITY, resolveQuality, CHARACTERS, charById, MODES } from './config.js';
 import { loadingManager, isTouch, isMobile } from './core/util.js';
 import { UI } from './ui/ui.js';
-import { Input } from './game/input.js';
+import { Input, noBrowserTouch } from './game/input.js';
 import { Audio } from './audio/audio.js';
 import { Voice } from './audio/voice.js';
 import { Samples } from './audio/samples.js';
@@ -31,6 +31,7 @@ app.renderer = renderer;
 const camera = new THREE.PerspectiveCamera(64, 16 / 9, 0.3, 4000);
 app.camera = camera;
 const gameEl = document.getElementById('game');
+noBrowserTouch(canvas); // long-press / double-tap on the 3D view never opens browser menus or zooms
 // ---- behave like a real game, not a web page: no selection / copy / context menu / long-press menu / zoom
 {
   const field = (t) => !!t?.closest?.('input, textarea, select');
@@ -54,8 +55,8 @@ function drsSample(ms) {
   const avg = drs.sum / drs.n; drs.sum = 0; drs.n = 0;
   const target = 1000 / Math.min(S.fpsLimit || drs.refresh, drs.refresh);
   let next = drs.scale;
-  if (avg > target * 1.15) { next = Math.max(drs.min, drs.scale * Math.max(0.8, Math.sqrt(target / avg))); drs.good = 0; }
-  else if (avg < target * 1.05) { if (++drs.good >= 3) { next = Math.min(1, drs.scale + 0.05); drs.good = 0; } }
+  if (avg > target * 1.25) { next = Math.max(drs.min, drs.scale * Math.max(0.85, Math.sqrt(target / avg))); drs.good = 0; } // only when it really drops (< ~48 fps)
+  else if (avg < target * 1.08) { if (++drs.good >= 2) { next = Math.min(1, drs.scale + 0.1); drs.good = 0; } }          // and back to full sharpness quickly
   else drs.good = 0;
   if (drs.scale <= drs.min + 0.001 && avg > target * 1.45 && app.state === 'race') {
     if (++drs.slow === 6 && S.quality === 'high') ui.toast('📱 Phone par game atak raha hai — Settings ⚙ me Graphics MEDIUM karo');
@@ -280,6 +281,7 @@ app.input.on('reset', () => app.race?.player?.reset());
 app.input.on('kickL', () => app.race?.playerKick(-1));
 app.input.on('kickR', () => app.race?.playerKick(1));
 app.input.on('nitroTap', () => { if (app.race && app.state === 'race' && app.race.state !== 'intro') { if (app.race.player.startNitro()) Samples.play('whoosh', { volume: 0.4 }); else if (app.race.player.nitro < 0.08) ui.toast('Nitro khaali — drift, wheelie ya jump se bharo!'); } });
+app.input.on('eat', () => app.race?.maggi?.tryStart());
 app.input.on('wheelie', () => { if (app.race && app.state === 'race' && app.race.state !== 'intro') app.race.player.startWheelie(5); });
 app.input.on('say', () => { if (app.race && app.state === 'race') app.race.say(app.race.player); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && app.state === 'race' && !app.mp?.inRoom) app.pause(); });

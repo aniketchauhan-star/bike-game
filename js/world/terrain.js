@@ -150,7 +150,7 @@ export class Terrain {
     const R = quality.phone ? 1024 : 512; // region size (merge + culling unit)
     const nCx = (this.maxX - this.minX) / C, nCz = (this.maxZ - this.minZ) / C;
     const regions = new Map();
-    const nearSegs = quality.id === 'high' ? 32 : quality.id === 'medium' ? 16 : 16;
+    const nearSegs = (quality.id === 'high' || quality.id === 'ultra') ? 32 : 16;
     const lodSegs = (dist) => {
       if (dist < 150) return nearSegs;
       if (dist < 420) return quality.id === 'low' ? 8 : 16;

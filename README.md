@@ -74,6 +74,8 @@ Game browser me khul jayega: `http://localhost:8080`
 - **Wheelie** button ek baar dabao to 5 second wheelie. Race shuru hote hi sab riders 2 second ka launch wheelie maarte hain.
 - **Nitro** drift, wheelie, jump aur takedown se bharta hai. Button ke ring me dikhta hai kitna bhara hai; poora bharne par chamakta hai.
 - **TAKEDOWN:** bagal wale rider ko laat maar ke giraoge to slow-motion me camera usko girte dikhata hai, aapka character dialogue bolta hai, aur nitro milta hai. Aapko koi giraye to "LAAT PADI!" aata hai.
+- **🍜 MAGGI POINT:** raste me 3 Maggi stall (Kosi nadi, pahadi mod, Ranikhet) — upar peela 🍜 marker aur roshni ki line, map par bhi 🍜. Stall ke saamne ruko → **EAT MAGGI** (keyboard **F**) → 10 sec cinematic: helmet utaarna, bhaiya ka Maggi banana, khaana, helmet wapas → **full nitro + 8 sec unlimited nitro**. (CPU riders tab bhi race karte rehte hain!)
+- **🍺 BEER SHOP:** Mohan gaon ke paas ek theka — ruko → **BEER PIYO** → helmet utaar ke peena, phir wapas race. Par **25 sec nasha**: camera ladkhadata hai, steering bahakti hai, view dhundla. (Himanshu teen hai — usko **cold drink** milti hai, nasha nahi, +35% nitro.) Asli zindagi me drink & drive kabhi nahi!
 - **CPU LEVEL:** lobby me EASY / MEDIUM / HARD. Hard me CPU tez, nitro aur laat zyada.
 - Track se bahar jungle ya nadi ki taraf ja sakte ho. **5 second** me wapas nahi aaye to game apne aap track par teleport kar dega.
 - Nadi me gire, ped ya deewar se takraye, ya bahut zor se land kiya to crash hoga. Rider bike se alag gir jayega.
