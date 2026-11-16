@@ -607,3 +607,8 @@ html, body, #stage { width: 100%; height: 100%; }
 .lefty .tc-right { right: auto; left: calc(var(--u) * 3); flex-direction: row-reverse; }
 
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* the full-screen touch layer must never swallow taps meant for the HUD buttons (pause / camera / reset / music) */
+#scr-hud .touch, #scr-hud .tc, #scr-hud .tc-col, #scr-hud .tc-row { pointer-events: none; }
+#scr-hud .tc .tbtn, #scr-hud .tc .nitro-btn { pointer-events: auto; }
+#scr-hud .tc-left .joy { pointer-events: auto; }
