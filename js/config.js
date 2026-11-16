@@ -92,7 +92,7 @@ export const QUALITY = {
 const PHONE = {
   low:    { maxDpr: 1, pixelRatio: 0.8, treeDensity: 0.32, treeLowR: 50, cullScale: 0.5, viewFar: 1200, drsMin: 0.5 },
   medium: { maxDpr: 1.25, shadowCasters: 'dynamic', treeDensity: 0.5, treeHighR: 26, treeLowR: 70, cullScale: 0.7, bakeSky: true, triplanar: false, lite: true, viewFar: 1700, drsMin: 0.55 },
-  high:   { maxDpr: 1.5, shadowSize: 1024, antialias: false, shadowCasters: 'dynamic', treeDensity: 0.75, treeHighR: 45, treeLowR: 100, cullScale: 0.85, bakeSky: true, triplanar: true, viewFar: 2300, drsMin: 0.6 },
+  high:   { maxDpr: 2, shadowSize: 1024, antialias: false, shadowCasters: 'all', treeDensity: 0.85, treeHighR: 70, treeLowR: 115, cullScale: 1, bakeSky: true, triplanar: true, lite: false, viewFar: 2800, drsMin: 0.65 },
 };
 export function resolveQuality(id, phone) {
   const base = QUALITY[id] || QUALITY.medium;
@@ -103,7 +103,7 @@ const isMobileUA = typeof navigator !== 'undefined' && (/Android|iPhone|iPad|iPo
   || ((('ontouchstart' in globalThis) || navigator.maxTouchPoints > 0) && typeof screen !== 'undefined' && Math.min(screen.width, screen.height) < 900));
 
 export const DEFAULT_SETTINGS = {
-  quality: isMobileUA ? 'medium' : 'high',
+  quality: 'high',       // phones too (dynamic resolution keeps it smooth); LOW / MEDIUM in Settings for older phones
   showFps: true,
   fpsLimit: 60,          // 30 | 60 | 0 (unlimited)
   master: 0.9, music: 0.55, sfx: 0.9, voice: 1.0,
@@ -128,6 +128,7 @@ export const Settings = {
     try { const s = JSON.parse(localStorage.getItem(KEY) || '{}'); this.data = { ...DEFAULT_SETTINGS, ...s }; } catch { /* private mode */ }
     if (!QUALITY[this.data.quality]) this.data.quality = DEFAULT_SETTINGS.quality;
     if (!this.data._fillV2) { this.data.aspect = 'fill'; this.data._fillV2 = true; this.save(); } // everyone gets full screen once
+    if (!this.data._hqV3) { this.data.quality = 'high'; this.data._hqV3 = true; this.save(); }        // and HIGH graphics once
     return this.data;
   },
   save() { try { localStorage.setItem(KEY, JSON.stringify(this.data)); } catch { /* ignore */ } },

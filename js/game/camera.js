@@ -60,6 +60,14 @@ export class CameraRig {
     const h = (far ? 2.5 : 1.62) + v * 0.004;
     let tx = base.x - fx * dist, tz = base.z - fz * dist, ty = base.y + h;
     if (racer.crashed > 0) { tx = base.x - fx * 6; tz = base.z - fz * 6; ty = base.y + 2.6; }
+    // keep the chase camera out of buildings (riding along the shops in Ramnagar): pull it in towards the bike
+    const S = this.world?.solids;
+    if (S) for (let k = 0; k < 6; k++) {
+      const list = S.near(tx, tz); let blocked = false;
+      if (list) for (const c of list) { if (c.r < 0.9) continue; const dx = tx - c.x, dz = tz - c.z; if (dx * dx + dz * dz < (c.r + 0.7) * (c.r + 0.7)) { blocked = true; break; } }
+      if (!blocked) break;
+      tx = base.x + (tx - base.x) * 0.68; tz = base.z + (tz - base.z) * 0.68; ty = Math.max(ty, base.y + 1.9);
+    }
     const gy = this.world ? this.world.groundAt(tx, tz) : -1e9;
     ty = Math.max(ty, gy + 0.7);
     if (!this.initialized) { this.pos.set(tx, ty, tz); this.look.copy(base); this.initialized = true; }

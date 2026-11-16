@@ -150,7 +150,7 @@ export class UI {
       <div class="set-row"><label>Tilt Sensitivity<small>Tilt mode ke liye (HTTPS link chahiye)</small></label>${range('tiltSens', 0.5, 2, 0.1)}</div>
       <div class="set-row"><label>Vibration</label>${seg('vibrate', [[true, 'ON'], [false, 'OFF']])}</div>
       <div class="set-h">GRAPHICS</div>
-      <div class="set-row"><label>Quality<small>Phone garam ho to LOW</small></label>${seg('quality', Object.values(QUALITY).map(q => [q.id, q.name]))}</div>
+      <div class="set-row"><label>Quality<small>HIGH = best look • atke to MEDIUM / LOW</small></label>${seg('quality', Object.values(QUALITY).map(q => [q.id, q.name]))}</div>
       <div class="set-row"><label>FPS Limit</label>${seg('fpsLimit', [[30, '30'], [60, '60'], [0, 'MAX']])}</div>
       <div class="set-row"><label>Show FPS</label>${seg('showFps', [[true, 'ON'], [false, 'OFF']])}</div>
       <div class="set-row"><label>Screen<small>Poori screen ya 16:9</small></label>${seg('aspect', [['fill', 'FULL SCREEN'], ['16:9', '16:9']])}</div>

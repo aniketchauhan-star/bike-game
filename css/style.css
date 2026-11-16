@@ -605,3 +605,5 @@ html, body, #stage { width: 100%; height: 100%; }
 .auto-gas .tc .brake { width: calc(var(--u) * 26); height: calc(var(--u) * 26); font-size: calc(var(--u) * 5.6); }
 .lefty .tc-left { left: auto; right: calc(var(--u) * 3); }
 .lefty .tc-right { right: auto; left: calc(var(--u) * 3); flex-direction: row-reverse; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }

@@ -46,7 +46,7 @@ const gameEl = document.getElementById('game');
 const touch = isTouch();
 
 // dynamic resolution: if the GPU can't hold the target frame rate, render fewer pixels (UI text stays sharp)
-const drs = { scale: 1, min: quality.drsMin ?? 0.6, sum: 0, n: 0, good: 0, refresh: 60, rafs: [] };
+const drs = { scale: 1, min: quality.drsMin ?? 0.6, sum: 0, n: 0, good: 0, slow: 0, refresh: 60, rafs: [] };
 function drsSample(ms) {
   if (ms > 250 || app.state === 'loading') { drs.sum = 0; drs.n = 0; return; }
   drs.sum += ms; drs.n++;
@@ -57,6 +57,9 @@ function drsSample(ms) {
   if (avg > target * 1.15) { next = Math.max(drs.min, drs.scale * Math.max(0.8, Math.sqrt(target / avg))); drs.good = 0; }
   else if (avg < target * 1.05) { if (++drs.good >= 3) { next = Math.min(1, drs.scale + 0.05); drs.good = 0; } }
   else drs.good = 0;
+  if (drs.scale <= drs.min + 0.001 && avg > target * 1.45 && app.state === 'race') {
+    if (++drs.slow === 6 && S.quality === 'high') ui.toast('📱 Phone par game atak raha hai — Settings ⚙ me Graphics MEDIUM karo');
+  } else drs.slow = 0;
   next = Math.round(next * 20) / 20;
   if (Math.abs(next - drs.scale) >= 0.049) { drs.scale = next; layout(); }
 }
